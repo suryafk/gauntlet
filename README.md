@@ -19,8 +19,8 @@ cp .env.example .env
 | `backend/main.py` | FastAPI routes: `/health`, `/personas`, `/config`, `/runs`, `/runs/{id}`, `/runs/{id}/calls`, `/runs/{id}/stream` (SSE), `/webhooks/bolna` |
 | `backend/orchestrator.py` | Fan-out with semaphore, per-run cap, call timeout, idempotent webhook handling |
 | `backend/bolna_adapter.py` | Only module that talks to Bolna. Real (`POST /call`) and mock adapters share one webhook parser |
-| `backend/scorer.py` | 5 metrics per call: extraction + latency checked in code; task, interruptions, policy by the Claude judge (`agents/judge_rubric.md`) or an offline heuristic; run summary and heatmap |
-| `backend/patcher.py` | Clusters failures by persona and metric, drafts a revised target prompt (Claude or offline rules), saves it as the next version |
+| `backend/scorer.py` | 5 metrics per call: extraction + latency checked in code; task, interruptions, policy by the LLM judge (Gemini by default; `agents/judge_rubric.md`) or an offline heuristic; run summary and heatmap |
+| `backend/patcher.py` | Clusters failures by persona and metric, drafts a revised target prompt (Gemini, Claude or offline rules), saves it as the next version |
 | `backend/seed.py`, `scripts/seed_run.py`, `seed/example_run.json` | Example run loaded into an empty database |
 | `backend/spotcheck.py` | Hand spot-check: stable 10-call sample, human labels, agreement with the judge |
 | `frontend/index.html` | Single-page dashboard: Launch, Run (live heatmap, calls, transcript with flagged lines), Compare (before/after by persona and metric, with the applied diff), Review (hand spot-check) |
@@ -84,13 +84,13 @@ Each finished call gets five pass/fail scores, each with a reason and, on failur
 | Policy | Judge: no fee waivers on claimed approval, amount read back before scheduling |
 | Latency | Code: target's first response under the persona's limit (1500 ms) |
 
-A call passes only if all five pass; failed or dropped calls count as fails. `JUDGE_MODE=auto` uses Claude (`claude-opus-5-5`, JSON-schema output, server-side refusal fallback) when `ANTHROPIC_API_KEY` is set, otherwise an offline heuristic tuned to the PayEasy scripts. If a Claude call fails, that call falls back to the heuristic and its reasons say so.
+A call passes only if all five pass; failed or dropped calls count as fails.
 
-Still to do: spot-check about 10 judged calls by hand against the Claude judge and record the agreement rate.
+**Which LLM.** `LLM_PROVIDER=gemini` (the default) grades with `GEMINI_MODEL` (`gemini-3.8-flash`) and drafts patches with `GEMINI_PATCH_MODEL` (`gemini-4-argon`). Both use the google-genai Interactions API with a JSON-schema response and `store=False`. Set `LLM_PROVIDER=claude` with `ANTHROPIC_API_KEY` to use Claude (`claude-opus-5-5`) instead. With `JUDGE_MODE=auto`, if the chosen provider has no key, the offline heuristic judge and rewrite rules are used. `JUDGE_MODE=heuristic` forces offline. If an LLM call fails, that call falls back to the heuristic and its reasons say so.
 
 ## Patch, re-run, compare (stage 4)
 
-1. On a finished run, **Generate patch** clusters the failed scores by persona and metric (with the scorer's reasons and flagged lines) and drafts a revised target prompt. Claude (`agents/patcher_prompt.md`) drafts it when `ANTHROPIC_API_KEY` is set; otherwise fixed rewrite rules swap each known flawed v1 instruction for its fix. Dial failures and latency are left out, since a prompt can't fix them.
+1. On a finished run, **Generate patch** clusters the failed scores by persona and metric (with the scorer's reasons and flagged lines) and drafts a revised target prompt. The LLM provider's model (`agents/patcher_prompt.md`) drafts it when its key is set; otherwise fixed rewrite rules swap each known flawed v1 instruction for its fix. Dial failures and latency are left out, since a prompt can't fix them.
 2. **Apply and re-run** saves the patched prompt as the next version (`agents/target_prompts/v2.md`, `v3.md`, ...) and starts a new run with the same personas and call counts, linked by `parent_run_id`. In real mode the run first pushes that prompt to the target agent in Bolna.
 3. **Compare** shows the pass rate before and after, per persona and per metric, with the applied diff.
 
@@ -110,4 +110,4 @@ API: `POST /runs/{id}/patch`, `GET /runs/{id}/patches`, `POST /runs/{id}/rerun {
 
 **Error states.** If the server can't be reached or a request fails, a banner says so and offers **Retry**. If the live stream drops, the page falls back to polling every 2 s and says so in the run bar.
 
-**Spot-check (Review tab).** Pick a finished run, and the tab samples 10 calls. The sample is stable per run, alternates calls the judge passed and failed, and spreads across personas. For each call you label Task, Interrupt and Policy yourself. The judge's verdicts stay hidden until you save, then show as agree or disagree with its reasons. The agreement card gives the overall and per-metric rates and lists every disagreement with your note. Labels are stored in the `reviews` table, and each score records which judge produced it (`claude`, `heuristic`, `heuristic fallback` or `code`). API: `GET /runs/{id}/spotcheck`, `POST /calls/{id}/review`.
+**Spot-check (Review tab).** Pick a finished run, and the tab samples 10 calls. The sample is stable per run, alternates calls the judge passed and failed, and spreads across personas. For each call you label Task, Interrupt and Policy yourself. The judge's verdicts stay hidden until you save, then show as agree or disagree with its reasons. The agreement card gives the overall and per-metric rates and lists every disagreement with your note. Labels are stored in the `reviews` table, and each score records which judge produced it (`gemini`, `claude`, `heuristic`, `heuristic fallback` or `code`). API: `GET /runs/{id}/spotcheck`, `POST /calls/{id}/review`.

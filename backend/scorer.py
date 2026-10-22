@@ -17,8 +17,9 @@ from typing import Any
 
 import anthropic
 
-from .config import ROOT, Settings
+from .config import ROOT, Settings, pick_llm
 from .events import EventBus, log_event
+from .gemini import GeminiJSON
 from .models import Store
 
 METRICS = ["task_completion", "extraction_accuracy", "interruption_recovery", "policy_adherence", "latency"]
@@ -189,6 +190,20 @@ JUDGE_SCHEMA = {
 JUDGE_SYSTEM = (ROOT / "agents" / "judge_rubric.md").read_text()
 
 
+def judge_prompt(call: dict, persona: dict) -> str:
+    """The judge's input for one call; the same for every provider."""
+    lines = "\n".join(f"{i}. {t['speaker']}: {t['text']}" for i, t in enumerate(call.get("transcript") or []))
+    policies = list(dict.fromkeys(persona["success_criteria"].get("policy", []) + GENERAL_POLICY))
+    return (
+        f"Caller persona: {persona['name']} ({persona['language_mix']})\n"
+        f"What the caller wanted: {json.dumps(persona['scenario'], ensure_ascii=False)}\n"
+        f"Policies the agent must follow:\n" + "\n".join(f"- {p}" for p in policies) + "\n"
+        f"What the agent sent to its schedule_payment tool: "
+        f"{json.dumps(call.get('tool_payload'), ensure_ascii=False) if call.get('tool_payload') else 'nothing'}\n\n"
+        f"Transcript:\n{lines or '(empty)'}"
+    )
+
+
 class ClaudeJudge:
     name = "claude"
 
@@ -196,24 +211,12 @@ class ClaudeJudge:
         self.settings = settings
         self.client = client or anthropic.AsyncAnthropic()
 
-    def _prompt(self, call: dict, persona: dict) -> str:
-        lines = "\n".join(f"{i}. {t['speaker']}: {t['text']}" for i, t in enumerate(call.get("transcript") or []))
-        policies = list(dict.fromkeys(persona["success_criteria"].get("policy", []) + GENERAL_POLICY))
-        return (
-            f"Caller persona: {persona['name']} ({persona['language_mix']})\n"
-            f"What the caller wanted: {json.dumps(persona['scenario'], ensure_ascii=False)}\n"
-            f"Policies the agent must follow:\n" + "\n".join(f"- {p}" for p in policies) + "\n"
-            f"What the agent sent to its schedule_payment tool: "
-            f"{json.dumps(call.get('tool_payload'), ensure_ascii=False) if call.get('tool_payload') else 'nothing'}\n\n"
-            f"Transcript:\n{lines or '(empty)'}"
-        )
-
     async def judge(self, call: dict, persona: dict) -> dict[str, Verdict]:
         response = await self.client.beta.messages.create(
             model=self.settings.judge_model,
             max_tokens=16000,
             system=JUDGE_SYSTEM,
-            messages=[{"role": "user", "content": self._prompt(call, persona)}],
+            messages=[{"role": "user", "content": judge_prompt(call, persona)}],
             output_config={"effort": "medium", "format": {"type": "json_schema", "schema": JUDGE_SCHEMA}},
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
@@ -227,9 +230,29 @@ class ClaudeJudge:
         return {m: Verdict(bool(data[m]["passed"]), data[m]["reason"], data[m].get("quote", "")) for m in JUDGED}
 
 
+class GeminiJudge:
+    name = "gemini"
+
+    def __init__(self, settings: Settings, client: Any = None):
+        self.settings = settings
+        self.llm = GeminiJSON(settings, client)
+
+    async def judge(self, call: dict, persona: dict) -> dict[str, Verdict]:
+        data = await self.llm.ask(
+            model=self.settings.gemini_model,
+            system=JUDGE_SYSTEM,
+            prompt=judge_prompt(call, persona),
+            schema=JUDGE_SCHEMA,
+            thinking_level="medium",
+        )
+        return {m: Verdict(bool(data[m]["passed"]), data[m]["reason"], data[m].get("quote", "")) for m in JUDGED}
+
+
 def make_judge(settings: Settings):
-    mode = settings.judge_mode
-    if mode == "claude" or (mode == "auto" and settings.anthropic_api_key):
+    llm = pick_llm(settings)
+    if llm == "gemini":
+        return GeminiJudge(settings)
+    if llm == "claude":
         return ClaudeJudge(settings)
     return HeuristicJudge()
 

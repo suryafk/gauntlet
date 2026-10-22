@@ -1,10 +1,12 @@
-"""Run a small mock run graded by the Claude judge, then grade the same calls with the
-heuristic judge and compare both against what each mock script was built to show.
+"""Run a small mock run graded by the LLM judge (Gemini or Claude, per LLM_PROVIDER), then grade
+the same calls with the heuristic judge and compare both against what each mock script was
+built to show.
 
   python scripts/compare_judges.py              # 12 calls: 1 per persona on prompt v1 and on v2
-  python scripts/compare_judges.py --dry-run    # no API calls: heuristic stands in for Claude
+  python scripts/compare_judges.py --dry-run    # no API calls: heuristic stands in for the LLM
 
-Needs ANTHROPIC_API_KEY in .env (except with --dry-run). Uses a throwaway database.
+Needs GEMINI_API_KEY (or ANTHROPIC_API_KEY with LLM_PROVIDER=claude) in .env, except with --dry-run.
+Uses a throwaway database.
 Writes reports/judge_comparison.md.
 """
 
@@ -19,12 +21,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from backend import mock_data  # noqa: E402
 from backend.bolna_adapter import MockBolnaAdapter  # noqa: E402
-from backend.config import ROOT, Settings  # noqa: E402
+from backend.config import ROOT, Settings, pick_llm  # noqa: E402
 from backend.events import EventBus  # noqa: E402
 from backend.models import Store  # noqa: E402
 from backend.orchestrator import Orchestrator  # noqa: E402
+from backend.patcher import PATCHABLE, TemplatePatcher  # noqa: E402
 from backend.personas import load_personas  # noqa: E402
-from backend.scorer import JUDGED, METRIC_LABELS, ClaudeJudge, HeuristicJudge, Scorer  # noqa: E402
+from backend.scorer import JUDGED, METRIC_LABELS, HeuristicJudge, Scorer, make_judge  # noqa: E402
 
 
 async def run_mock(settings: Settings, judge, versions: list[str], per_persona: int, seed: int):
@@ -43,11 +46,11 @@ async def run_mock(settings: Settings, judge, versions: list[str], per_persona: 
     elapsed = time.monotonic() - started
     await orch.shutdown()
     calls = [c for r in runs for c in store.list_calls(r["id"])]
-    claude_scores = {}
+    llm_scores = {}
     for r in runs:
         for s in store.scores_for_run(r["id"]):
-            claude_scores[(s["call_id"], s["metric"])] = s
-    return calls, claude_scores, personas, elapsed
+            llm_scores[(s["call_id"], s["metric"])] = s
+    return calls, llm_scores, personas, elapsed
 
 
 def pct(n: int, d: int) -> str:
@@ -66,18 +69,29 @@ async def main() -> None:
     settings.database_url = str(Path(tempfile.mkdtemp()) / "judge_compare.db")
     settings.mock_call_min_s, settings.mock_call_max_s = 0.2, 0.6
     settings.mock_dial_fail_rate = 0.0
-    if not args.dry_run and not settings.anthropic_api_key:
-        sys.exit("ANTHROPIC_API_KEY is not set. Put it in .env (copy .env.example), or use --dry-run.")
+    # Private prompt versions: v1 as shipped, v2 = v1 with every offline rule applied.
+    settings.target_prompts_dir = Path(tempfile.mkdtemp())
+    v1 = (ROOT / "agents" / "target_prompts" / "v1.md").read_text()
+    (settings.target_prompts_dir / "v1.md").write_text(v1)
+    v2 = await TemplatePatcher().draft(v1, [{"metric": m} for m in PATCHABLE])
+    (settings.target_prompts_dir / "v2.md").write_text(v2["revised_prompt"])
+    settings.judge_mode = "auto"
+    llm = pick_llm(settings)
+    if not args.dry_run and llm is None:
+        key = "ANTHROPIC_API_KEY" if settings.llm_provider == "claude" else "GEMINI_API_KEY"
+        sys.exit(f"{key} is not set. Put it in .env (copy .env.example), or use --dry-run.")
 
-    judge = HeuristicJudge() if args.dry_run else ClaudeJudge(settings)
-    label = "heuristic (dry run)" if args.dry_run else f"Claude ({settings.judge_model})"
+    judge = HeuristicJudge() if args.dry_run else make_judge(settings)
+    model = settings.gemini_model if llm == "gemini" else settings.judge_model
+    name = {"gemini": "Gemini", "claude": "Claude"}.get(llm, "LLM")
+    label = "heuristic (dry run)" if args.dry_run else f"{name} ({model})"
     print(f"Running mock calls graded by {label}…")
-    calls, claude_scores, personas, elapsed = await run_mock(settings, judge, ["v1", "v2"], args.per_persona, args.seed)
+    calls, llm_scores, personas, elapsed = await run_mock(settings, judge, ["v1", "v2"], args.per_persona, args.seed)
 
     heuristic = HeuristicJudge()
     rows, disagreements = [], []
     agree = {m: [0, 0] for m in JUDGED}           # claude vs heuristic
-    claude_right = {m: [0, 0] for m in JUDGED}    # claude vs designed
+    llm_right = {m: [0, 0] for m in JUDGED}    # claude vs designed
     heur_right = {m: [0, 0] for m in JUDGED}      # heuristic vs designed
     fallbacks = 0
     for call in calls:
@@ -87,15 +101,15 @@ async def main() -> None:
         h = await heuristic.judge(call, persona)
         cells = []
         for m in JUDGED:
-            c = claude_scores[(call["id"], m)]
+            c = llm_scores[(call["id"], m)]
             if c["reason"].startswith("[heuristic fallback]"):
                 fallbacks += 1
             c_pass, h_pass, d_pass = bool(c["passed"]), h[m].passed, m not in designed_fail
             agree[m][0] += c_pass == h_pass
             agree[m][1] += 1
             if outcome:
-                claude_right[m][0] += c_pass == d_pass
-                claude_right[m][1] += 1
+                llm_right[m][0] += c_pass == d_pass
+                llm_right[m][1] += 1
                 heur_right[m][0] += h_pass == d_pass
                 heur_right[m][1] += 1
             mark = lambda ok: "✓" if ok else "✕"  # noqa: E731
@@ -111,7 +125,7 @@ async def main() -> None:
         "",
         f"{len(calls)} mock calls (prompt v1 and v2, {args.per_persona} per persona each), graded by {label}"
         f" and by the offline heuristic. Took {elapsed:.0f}s."
-        + (f" {fallbacks} judged scores fell back to the heuristic because the Claude call failed."
+        + (f" {fallbacks} judged scores fell back to the heuristic because the LLM call failed."
            if fallbacks else ""),
         "",
         "\"Designed\" is what each canned mock script was written to show (pass script: every metric passes;"
@@ -120,14 +134,14 @@ async def main() -> None:
         "",
         "## Agreement",
         "",
-        "| Metric | Claude vs heuristic | Claude vs designed | Heuristic vs designed |",
+        "| Metric | LLM vs heuristic | LLM vs designed | Heuristic vs designed |",
         "|---|---|---|---|",
     ]
     for m in JUDGED:
-        lines.append(f"| {METRIC_LABELS[m]} | {pct(*agree[m])} | {pct(*claude_right[m])} | {pct(*heur_right[m])} |")
-    lines.append(f"| **All judged** | **{pct(*total(agree))}** | **{pct(*total(claude_right))}**"
+        lines.append(f"| {METRIC_LABELS[m]} | {pct(*agree[m])} | {pct(*llm_right[m])} | {pct(*heur_right[m])} |")
+    lines.append(f"| **All judged** | **{pct(*total(agree))}** | **{pct(*total(llm_right))}**"
                  f" | **{pct(*total(heur_right))}** |")
-    lines += ["", "## Per call (Claude / heuristic / designed)", "",
+    lines += ["", "## Per call (LLM / heuristic / designed)", "",
               "| Persona | Script | " + " | ".join(METRIC_LABELS[m] for m in JUDGED) + " |",
               "|---|---|" + "---|" * len(JUDGED), *rows, ""]
     lines += ["## Disagreements", ""]
@@ -136,8 +150,8 @@ async def main() -> None:
     for name, outcome, m, c, h, d, cr, hr in disagreements:
         yn = lambda ok: "pass" if ok else "fail"  # noqa: E731
         lines += [f"**{name}, {outcome} script, {METRIC_LABELS[m]}**: "
-                  f"Claude {yn(c)}, heuristic {yn(h)}, designed {yn(d)}",
-                  f"- Claude: {cr}", f"- Heuristic: {hr}", ""]
+                  f"LLM {yn(c)}, heuristic {yn(h)}, designed {yn(d)}",
+                  f"- LLM: {cr}", f"- Heuristic: {hr}", ""]
 
     report = "\n".join(lines) + "\n"
     out = ROOT / "reports" / ("judge_comparison_dry_run.md" if args.dry_run else "judge_comparison.md")

@@ -17,8 +17,9 @@ from typing import Any
 import anthropic
 
 from .bolna_agents import target_prompt
-from .config import ROOT, Settings
+from .config import ROOT, Settings, pick_llm
 from .events import log_event
+from .gemini import GeminiJSON
 from .models import Store, new_id, now
 from .scorer import METRIC_LABELS
 
@@ -138,6 +139,13 @@ PATCH_SCHEMA = {
 PATCH_SYSTEM = (ROOT / "agents" / "patcher_prompt.md").read_text()
 
 
+def patch_request(prompt: str, clusters: list[dict]) -> str:
+    evidence = json.dumps([{k: c[k] for k in ("persona", "metric", "failed", "calls", "reasons", "examples")}
+                           for c in clusters], ensure_ascii=False, indent=1)
+    return (f"<current_prompt>\n{prompt}\n</current_prompt>\n\n"
+            f"<failure_clusters>\n{evidence}\n</failure_clusters>")
+
+
 class ClaudePatcher:
     name = "claude"
 
@@ -146,15 +154,11 @@ class ClaudePatcher:
         self.client = client or anthropic.AsyncAnthropic()
 
     async def draft(self, prompt: str, clusters: list[dict]) -> dict[str, Any]:
-        evidence = json.dumps([{k: c[k] for k in ("persona", "metric", "failed", "calls", "reasons", "examples")}
-                               for c in clusters], ensure_ascii=False, indent=1)
         response = await self.client.beta.messages.create(
             model=self.settings.judge_model,
             max_tokens=16000,
             system=PATCH_SYSTEM,
-            messages=[{"role": "user", "content":
-                       f"<current_prompt>\n{prompt}\n</current_prompt>\n\n<failure_clusters>\n{evidence}\n"
-                       "</failure_clusters>"}],
+            messages=[{"role": "user", "content": patch_request(prompt, clusters)}],
             output_config={"effort": "high", "format": {"type": "json_schema", "schema": PATCH_SCHEMA}},
             betas=["server-side-fallback-2026-07-01"],
             fallbacks="default",
@@ -167,9 +171,28 @@ class ClaudePatcher:
         return json.loads(text)
 
 
+class GeminiPatcher:
+    name = "gemini"
+
+    def __init__(self, settings: Settings, client: Any = None):
+        self.settings = settings
+        self.llm = GeminiJSON(settings, client)
+
+    async def draft(self, prompt: str, clusters: list[dict]) -> dict[str, Any]:
+        return await self.llm.ask(
+            model=self.settings.gemini_patch_model,
+            system=PATCH_SYSTEM,
+            prompt=patch_request(prompt, clusters),
+            schema=PATCH_SCHEMA,
+            thinking_level="high",
+        )
+
+
 def make_patcher(settings: Settings):
-    mode = settings.judge_mode
-    if mode == "claude" or (mode == "auto" and settings.anthropic_api_key):
+    llm = pick_llm(settings)
+    if llm == "gemini":
+        return GeminiPatcher(settings)
+    if llm == "claude":
         return ClaudePatcher(settings)
     return TemplatePatcher()
 

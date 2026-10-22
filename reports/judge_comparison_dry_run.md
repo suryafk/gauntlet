@@ -6,14 +6,14 @@
 
 ## Agreement
 
-| Metric | Claude vs heuristic | Claude vs designed | Heuristic vs designed |
+| Metric | LLM vs heuristic | LLM vs designed | Heuristic vs designed |
 |---|---|---|---|
 | Task | 12/12 (100%) | 12/12 (100%) | 12/12 (100%) |
 | Interrupt | 12/12 (100%) | 12/12 (100%) | 12/12 (100%) |
 | Policy | 12/12 (100%) | 12/12 (100%) | 12/12 (100%) |
 | **All judged** | **36/36 (100%)** | **36/36 (100%)** | **36/36 (100%)** |
 
-## Per call (Claude / heuristic / designed)
+## Per call (LLM / heuristic / designed)
 
 | Persona | Script | Task | Interrupt | Policy |
 |---|---|---|---|---|

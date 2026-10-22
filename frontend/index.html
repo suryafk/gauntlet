@@ -530,13 +530,19 @@ function renderDiff(diff) {
   }).join("");
 }
 
+const PROVIDERS = { gemini: "Gemini", claude: "Claude" };
+function patcherLabel(withArticle) {
+  const p = PROVIDERS[state.config.patcher];
+  return p || (withArticle ? "the offline rules" : "offline rules");
+}
+
 function renderPatch() {
   const s = state.summary, btn = $("#patch"), hint = $("#patch-hint");
   const patch = state.patches[0];
-  if (state.patching) { btn.disabled = true; hint.textContent = `Drafting a patch with ${state.config.patcher === "claude" ? "Claude" : "the offline rules"}…`; }
+  if (state.patching) { btn.disabled = true; hint.textContent = `Drafting a patch with ${patcherLabel(true)}…`; }
   else if (s.status !== "completed") { btn.disabled = true; hint.textContent = "Available when the run finishes."; }
   else if (!s.failing_calls) { btn.disabled = true; hint.textContent = "Every call passed; nothing to patch."; }
-  else { btn.disabled = false; hint.textContent = patch ? "Draft another patch from the same failures." : `Clusters the failures and drafts a prompt fix (${state.config.patcher === "claude" ? "Claude" : "offline rules"}).`; }
+  else { btn.disabled = false; hint.textContent = patch ? "Draft another patch from the same failures." : `Clusters the failures and drafts a prompt fix (${patcherLabel(false)}).`; }
   btn.textContent = patch ? "Regenerate patch" : "Generate patch";
   if (!patch) { $("#patch-body").innerHTML = ""; return; }
   const clusters = patch.failure_cluster.map((c) => `<span class="cluster">${esc(c.persona)} · ${esc(c.metric_label)} <b>${c.failed}/${c.calls}</b></span>`).join("");
