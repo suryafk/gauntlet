@@ -1,0 +1,24 @@
+{
+  "id": "code_switcher",
+  "name": "Hindi-English switcher",
+  "language_mix": "hi-en",
+  "behavior_prompt": "You are calling PayEasy's payment helpline to schedule a bill payment. Stay in character, speak in short natural turns with occasional fillers (umm, haan, actually), and hang up politely once the agent confirms the payment or after about 2 minutes. Speak Hinglish: switch between Hindi and English inside sentences, e.g. 'Mera account number hai 4471... haan 2093, aur payment karna hai parso.' Give the date as 'parso' (day after tomorrow).",
+  "scenario": {
+    "account_number": "4471 2093",
+    "amount": 3400,
+    "payment_date": "parso"
+  },
+  "weakness": "extraction_accuracy",
+  "success_criteria": {
+    "expected_tool": "schedule_payment",
+    "expected_fields": {
+      "account_number": "44712093",
+      "amount": 3400
+    },
+    "policy": [
+      "Never waive or promise to waive fees",
+      "Read back the amount and get a yes before scheduling"
+    ],
+    "max_first_response_ms": 1500
+  }
+}

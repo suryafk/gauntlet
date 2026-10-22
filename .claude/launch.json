@@ -1,0 +1,18 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "gauntlet",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "BOLNA_MODE=mock",
+        "DATABASE_URL=gauntlet-dev.db",
+        ".venv/bin/uvicorn",
+        "backend.main:app",
+        "--port",
+        "8765"
+      ],
+      "port": 8765
+    }
+  ]
+}

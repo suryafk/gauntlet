@@ -1,0 +1,20 @@
+{
+  "_note": "Shared voice-stack settings for the target and caller agents. Values follow Bolna's create-agent example; check them in the Bolna dashboard before relying on them (voice ids especially).",
+  "llm": {"provider": "openai", "model": "gpt-5.4-mini", "max_tokens": 150, "temperature": 0.7},
+  "transcriber": {"provider": "deepgram", "model": "nova-3", "language": "multi", "endpointing": 250},
+  "telephony_provider": "plivo",
+  "target": {
+    "name": "Gauntlet Target (PayEasy)",
+    "welcome_message": "Namaste, PayEasy mein aapka swagat hai. How can I help you today?",
+    "synthesizer": {"provider": "elevenlabs", "voice": "Angelica", "voice_id": "IkSv4tkouLJ6kYsQA7XD", "model": "eleven_turbo_v2_5"},
+    "call_terminate": 180,
+    "hangup_after_silence": 15
+  },
+  "caller": {
+    "name": "Gauntlet Caller",
+    "welcome_message": "",
+    "synthesizer": {"provider": "elevenlabs", "voice": "Angelica", "voice_id": "IkSv4tkouLJ6kYsQA7XD", "model": "eleven_turbo_v2_5"},
+    "call_terminate": 150,
+    "hangup_after_silence": 15
+  }
+}

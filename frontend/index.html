@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauntlet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B0F14; --surface: #131A22; --surface-2: #19222C; --border: #24303C;
+    --text: #E6EDF3; --muted: #8B98A5;
+    --pass: #2EA043; --warn: #D29922; --fail: #F85149; --accent: #58A6FF; --pending: #3A4652;
+    --radius: 8px; --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 Inter, system-ui, sans-serif; }
+  button, input, select { font: inherit; color: inherit; }
+  .mono { font-family: var(--mono); }
+  .muted { color: var(--muted); }
+
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg); z-index: 5; flex-wrap: wrap; }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: .02em; }
+  .badge { font: 500 11px var(--mono); padding: 2px 8px; border: 1px solid var(--border); border-radius: 99px; color: var(--muted); }
+  nav { margin-left: auto; display: flex; gap: 4px; }
+  nav button { background: none; border: 1px solid transparent; border-radius: var(--radius); padding: 6px 12px; cursor: pointer; color: var(--muted); }
+  nav button[aria-current="page"] { color: var(--text); border-color: var(--border); background: var(--surface); }
+
+  main { padding: 24px; max-width: 1400px; margin: 0 auto; }
+  section[hidden] { display: none; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .card h2 { font-size: 13px; font-weight: 600; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  .btn { background: var(--accent); color: #0B0F14; border: 0; border-radius: var(--radius); padding: 8px 16px; font-weight: 600; cursor: pointer; }
+  .btn:disabled { opacity: .45; cursor: not-allowed; }
+  .btn.ghost { background: none; color: var(--accent); border: 1px solid var(--border); }
+
+  /* Launch */
+  .launch { max-width: 720px; display: grid; gap: 16px; }
+  .personas { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+  .persona { display: flex; gap: 8px; align-items: flex-start; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+  .persona input { margin-top: 3px; accent-color: var(--accent); }
+  .persona small { display: block; color: var(--muted); }
+  .row { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  input[type=range] { accent-color: var(--accent); width: 200px; }
+  .error { color: var(--fail); }
+
+  /* Run */
+  .runbar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .runbar select { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 8px; max-width: 100%; }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .tile .label { color: var(--muted); font-size: 12px; }
+  .tile .value { font-size: 28px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .split { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); gap: 16px; margin-bottom: 16px; }
+  .heatmap-wrap { overflow-x: auto; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th { text-align: left; font-weight: 500; color: var(--muted); font-size: 12px; padding: 6px 8px; }
+  td { padding: 6px 8px; border-top: 1px solid var(--border); }
+  .heatmap td { padding: 4px; border: 0; }
+  .heatmap th { text-align: center; }
+  .heatmap th:first-child { text-align: left; }
+  .cell { width: 100%; min-width: 52px; border: 1px solid var(--border); border-radius: 6px; padding: 8px 4px; text-align: center; cursor: pointer; background: var(--surface-2); font: 500 12px var(--mono); transition: background .3s; }
+  .cell.pass { background: color-mix(in srgb, var(--pass) 35%, transparent); border-color: var(--pass); }
+  .cell.warn { background: color-mix(in srgb, var(--warn) 35%, transparent); border-color: var(--warn); }
+  .cell.fail { background: color-mix(in srgb, var(--fail) 35%, transparent); border-color: var(--fail); }
+  .cell.pending { color: var(--muted); }
+  .cell.selected { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .persona-name { white-space: nowrap; }
+
+  .calls { max-height: 420px; overflow: auto; }
+  .calls tr { cursor: pointer; }
+  .calls tr:hover td { background: var(--surface-2); }
+  .calls tr.selected td { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .chip { display: inline-flex; align-items: center; gap: 4px; font: 500 11px var(--mono); padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border); white-space: nowrap; }
+  .chip.completed { color: var(--pass); border-color: var(--pass); }
+  .chip.failed { color: var(--fail); border-color: var(--fail); }
+  .chip.dialing, .chip.in_progress { color: var(--warn); border-color: var(--warn); }
+  .dots { display: inline-flex; gap: 3px; }
+  .dot { width: 14px; height: 14px; border-radius: 4px; display: inline-grid; place-items: center; font: 600 9px var(--mono); color: #0B0F14; }
+  .dot.p { background: var(--pass); } .dot.f { background: var(--fail); } .dot.n { background: var(--pending); }
+
+  .transcript { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; }
+  .turn { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 6px 8px; border-radius: 6px; font-family: var(--mono); font-size: 13px; }
+  .turn .who { color: var(--muted); }
+  .turn.agent .who { color: var(--accent); }
+  .turn.flagged { background: color-mix(in srgb, var(--fail) 16%, transparent); border-left: 3px solid var(--fail); }
+  .flag { grid-column: 2; color: var(--fail); font-family: Inter, sans-serif; font-size: 12px; }
+  .scores li { list-style: none; padding: 6px 0; border-top: 1px solid var(--border); }
+  .scores ul { padding: 0; margin: 0; }
+  .ok { color: var(--pass); } .bad { color: var(--fail); }
+  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; overflow: auto; font: 12px var(--mono); margin: 4px 0 0; }
+  .empty { padding: 48px; text-align: center; color: var(--muted); }
+  a { color: var(--accent); }
+
+  /* Patch + compare */
+  .diff { white-space: pre-wrap; }
+  .diff .add { color: var(--pass); background: color-mix(in srgb, var(--pass) 12%, transparent); display: block; }
+  .diff .del { color: var(--fail); background: color-mix(in srgb, var(--fail) 12%, transparent); display: block; }
+  .diff .hunk { color: var(--muted); display: block; }
+  .clusters { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+  .cluster { border: 1px solid var(--fail); color: var(--text); border-radius: 6px; padding: 4px 8px; font-size: 12px; }
+  .cluster b { color: var(--fail); font-family: var(--mono); }
+  .big { font-size: 40px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .arrow { color: var(--muted); margin: 0 12px; font-size: 28px; }
+  .bars td { vertical-align: middle; }
+  .bar { height: 14px; border-radius: 4px; background: var(--surface-2); position: relative; min-width: 120px; }
+  .bar > span { position: absolute; inset: 0 auto 0 0; border-radius: 4px; }
+  .bar.a > span { background: var(--muted); }
+  .bar.b > span { background: var(--accent); }
+  .delta { white-space: nowrap; }
+
+  /* Banners, review */
+  .banner { display: flex; gap: 12px; align-items: center; border: 1px solid var(--fail); background: color-mix(in srgb, var(--fail) 12%, transparent); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 16px; flex-wrap: wrap; }
+  .banner.info { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .banner[hidden] { display: none; }
+  .live { font: 500 11px var(--mono); color: var(--muted); }
+  .live.on::before { content: "● "; color: var(--pass); }
+  .live.poll::before { content: "● "; color: var(--warn); }
+  .review-q { border-top: 1px solid var(--border); padding: 12px 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; }
+  .review-q .desc { color: var(--muted); font-size: 12px; }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .seg button { background: none; border: 0; padding: 6px 14px; cursor: pointer; color: var(--muted); }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"].pass { background: color-mix(in srgb, var(--pass) 30%, transparent); color: var(--text); }
+  .seg button[aria-pressed="true"].fail { background: color-mix(in srgb, var(--fail) 30%, transparent); color: var(--text); }
+  .verdict { grid-column: 1 / -1; font-size: 12px; }
+  textarea { width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 8px; font: inherit; min-height: 56px; }
+  .progress { display: flex; gap: 4px; flex-wrap: wrap; }
+  .progress button { width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2); cursor: pointer; font: 500 11px var(--mono); }
+  .progress button.done { border-color: var(--pass); color: var(--pass); }
+  .progress button.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .delta.up { color: var(--pass); } .delta.down { color: var(--fail); }
+
+  @media (max-width: 900px) {
+    header, main { padding-left: 16px; padding-right: 16px; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .split, .transcript { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gauntlet</h1>
+  <span class="badge" id="mode">…</span>
+  <span class="badge" id="judge" title="Who grades task, interruption and policy metrics"></span>
+  <nav>
+    <button data-view="launch">Launch</button>
+    <button data-view="run">Run</button>
+    <button data-view="compare">Compare</button>
+    <button data-view="review">Review</button>
+  </nav>
+</header>
+
+<main>
+  <div id="banner" class="banner" hidden role="alert"><span id="banner-text"></span><button class="btn ghost" id="banner-retry">Retry</button></div>
+  <section id="view-launch" hidden>
+    <div class="launch">
+      <div class="card">
+        <h2>Target agent</h2>
+        <div class="mono" id="target"></div>
+        <div class="muted">Our deliberately flawed PayEasy agent. Callers may dial only this number.</div>
+      </div>
+      <div class="card">
+        <h2>Personas</h2>
+        <div class="personas" id="persona-list"></div>
+      </div>
+      <div class="card">
+        <div class="row">
+          <label for="per">Calls per persona</label>
+          <input type="range" id="per" min="1" max="10" value="5">
+          <span class="mono" id="per-val">5</span>
+          <span class="muted">Total: <b class="mono" id="total">0</b> calls · cap <span class="mono" id="cap"></span></span>
+        </div>
+        <div class="row" style="margin-top:16px">
+          <button class="btn" id="start">Start run</button>
+          <span class="error" id="launch-error" role="alert"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-run" hidden>
+    <div class="runbar">
+      <label for="run-select" class="muted">Run</label>
+      <select id="run-select"></select>
+      <span class="chip" id="run-status"></span>
+      <span id="run-lineage" class="muted"></span>
+      <span id="live" class="live"></span>
+      <button class="btn ghost" id="retry-failed" hidden></button>
+    </div>
+    <div id="seed-note" class="banner info" hidden></div>
+    <div id="run-empty" class="empty" hidden>No runs yet. <a href="#" data-goto="launch" style="color:var(--accent)">Start one</a>.</div>
+    <div id="run-body">
+      <div class="tiles">
+        <div class="card tile"><div class="label">Pass rate</div><div class="value" id="t-pass">–</div></div>
+        <div class="card tile"><div class="label">Calls done</div><div class="value" id="t-done">–</div></div>
+        <div class="card tile"><div class="label">Avg first response</div><div class="value" id="t-lat">–</div></div>
+        <div class="card tile"><div class="label">Failing calls</div><div class="value" id="t-fail">–</div></div>
+      </div>
+      <div class="split">
+        <div class="card">
+          <h2>Failure heatmap</h2>
+          <div class="heatmap-wrap"><table class="heatmap" id="heatmap"></table></div>
+          <div class="muted" style="margin-top:8px;font-size:12px">Share of calls passing each metric. Click a cell to filter the calls.</div>
+        </div>
+        <div class="card">
+          <h2>Calls <span id="filter-label" class="muted" style="text-transform:none;letter-spacing:0"></span></h2>
+          <div class="calls"><table id="calls"></table></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Transcript</h2>
+        <div id="transcript"><div class="empty">Select a call to read it.</div></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h2>Patch</h2>
+        <div class="row">
+          <button class="btn" id="patch" disabled>Generate patch</button>
+          <span class="muted" id="patch-hint" style="font-size:12px"></span>
+        </div>
+        <div id="patch-body"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="view-compare" hidden>
+    <div class="runbar">
+      <label for="cmp-a" class="muted">Before</label><select id="cmp-a"></select>
+      <label for="cmp-b" class="muted">After</label><select id="cmp-b"></select>
+    </div>
+    <div id="cmp-empty" class="empty" hidden>Generate a patch on a finished run and re-run it to compare.</div>
+    <div id="cmp-body"></div>
+  </section>
+
+  <section id="view-review" hidden>
+    <div class="runbar">
+      <label for="rev-run" class="muted">Run</label><select id="rev-run"></select>
+    </div>
+    <div class="split">
+      <div class="card">
+        <h2>Spot-check</h2>
+        <p class="muted" style="margin:0 0 12px">Label each sampled call yourself, then see what the judge said. The sample mixes calls the judge passed and failed, across personas.</p>
+        <div class="progress" id="rev-progress"></div>
+      </div>
+      <div class="card"><h2>Agreement with the judge</h2><div id="rev-agreement"></div></div>
+    </div>
+    <div class="card" id="rev-item"></div>
+  </section>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const api = async (path, opts) => {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || r.statusText);
+  return body;
+};
+
+const state = { config: null, personas: [], runs: [], runId: null, summary: null, calls: [], patches: [],
+  selectedCall: null, filter: null, es: null, patching: false };
+const runLabel = (r) => `${new Date(r.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })} · ${r.id} · prompt ${r.target_prompt_version}${r.parent_run_id ? " (re-run)" : ""}${r.seeded ? " · example" : ""}`;
+const pctText = (x) => x == null ? "–" : `${Math.round(x * 100)}%`;
+const personaName = (id) => (state.personas.find((p) => p.id === id) || {}).name || id;
+
+// views
+function show(view) {
+  for (const v of ["launch", "run", "compare", "review"]) $(`#view-${v}`).hidden = v !== view;
+  document.querySelectorAll("nav button").forEach((b) => { if (b.dataset.view !== view) b.removeAttribute("aria-current"); else b.setAttribute("aria-current", "page"); });
+  try { localStorage.setItem("gauntlet.view", view); } catch {}
+  if (view === "compare") renderCompareSelectors().catch(showError);
+  if (view === "review") openReview().catch(showError);
+}
+
+// errors
+let retryAction = null;
+function showError(err, retry) {
+  $("#banner-text").textContent = err instanceof TypeError ? "Can't reach the Gauntlet server. Is it running?" : `Something went wrong: ${err.message || err}`;
+  retryAction = retry || null;
+  $("#banner-retry").hidden = !retryAction;
+  $("#banner").hidden = false;
+}
+function clearError() { $("#banner").hidden = true; retryAction = null; }
+$("#banner-retry").addEventListener("click", () => { const r = retryAction; clearError(); if (r) r(); });
+document.querySelectorAll("nav button").forEach((b) => b.addEventListener("click", () => show(b.dataset.view)));
+document.querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); show(a.dataset.goto); }));
+
+// launch
+function renderLaunch() {
+  $("#target").textContent = state.config.target_number;
+  $("#cap").textContent = state.config.run_call_cap;
+  $("#persona-list").innerHTML = state.personas.map((p) => `
+    <label class="persona"><input type="checkbox" value="${esc(p.id)}" checked>
+      <span>${esc(p.name)}<small>${esc(p.language_mix)} · tests ${esc((p.weakness || "").replace(/_/g, " "))}</small></span></label>`).join("");
+  $("#persona-list").addEventListener("change", updateTotal);
+  $("#per").addEventListener("input", updateTotal);
+  updateTotal();
+}
+function selectedPersonas() { return [...document.querySelectorAll("#persona-list input:checked")].map((i) => i.value); }
+function updateTotal() {
+  const per = +$("#per").value, total = per * selectedPersonas().length;
+  $("#per-val").textContent = per;
+  $("#total").textContent = total;
+  const over = total > state.config.run_call_cap;
+  $("#start").disabled = over || total === 0;
+  $("#launch-error").textContent = over ? `Over the cap of ${state.config.run_call_cap} calls.` : "";
+}
+$("#start").addEventListener("click", async () => {
+  $("#start").disabled = true;
+  $("#launch-error").textContent = "";
+  try {
+    const run = await api("/runs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona_ids: selectedPersonas(), calls_per_persona: +$("#per").value }) });
+    await loadRuns(run.id);
+    show("run");
+  } catch (e) {
+    $("#launch-error").textContent = e.message;
+  } finally { updateTotal(); }
+});
+
+// runs
+async function loadRuns(selectId) {
+  const runs = await api("/runs");
+  state.runs = runs;
+  $("#run-empty").hidden = runs.length > 0;
+  $("#run-body").hidden = runs.length === 0;
+  $("#run-select").innerHTML = runs.map((r) => `<option value="${r.id}">${esc(runLabel(r))}</option>`).join("");
+  if (!runs.length) return;
+  // Open on your newest finished run; with only the example loaded, open on its baseline (the failures).
+  const id = selectId || (runs.find((r) => r.status === "completed" && !r.seeded)
+    || runs.find((r) => r.seeded && !r.parent_run_id) || runs[0]).id;
+  $("#run-select").value = id;
+  openRun(id);
+}
+$("#run-select").addEventListener("change", (e) => openRun(e.target.value));
+
+function openRun(id) {
+  state.runId = id; state.selectedCall = null; state.filter = null;
+  stopLive();
+  refresh();
+  startLive();
+}
+function startLive() {
+  stopLive();
+  const id = state.runId;
+  state.es = new EventSource(`/runs/${id}/stream`);
+  state.es.onopen = () => setLive("on", "live");
+  state.es.onmessage = () => scheduleRefresh();
+  state.es.onerror = () => {
+    // Stream dropped (proxy, sleep, server restart): fall back to polling every 2s.
+    stopLive();
+    if (state.runId !== id || (state.summary && state.summary.status === "completed")) return;
+    setLive("poll", "polling every 2s");
+    state.poll = setInterval(refresh, 2000);
+  };
+}
+function stopLive() {
+  if (state.es) { state.es.close(); state.es = null; }
+  if (state.poll) { clearInterval(state.poll); state.poll = null; }
+  setLive("", "");
+}
+function setLive(cls, text) { $("#live").className = `live ${cls}`; $("#live").textContent = text; }
+let refreshTimer = null;
+function scheduleRefresh() { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 250); }
+
+async function refresh() {
+  const id = state.runId;
+  let summary, calls, patches;
+  try {
+    [summary, calls, patches] = await Promise.all([api(`/runs/${id}`), api(`/runs/${id}/calls`), api(`/runs/${id}/patches`)]);
+  } catch (e) {
+    if (id === state.runId) showError(e, refresh);
+    return;
+  }
+  if (!$("#banner").hidden && retryAction === refresh) clearError();
+  if (id !== state.runId) return;
+  const finishedNow = summary.status === "completed" && state.summary && state.summary.id === id && state.summary.status !== "completed";
+  state.summary = summary; state.calls = calls; state.patches = patches;
+  renderTiles(); renderHeatmap(); renderCalls(); renderTranscript(); renderLineage(); renderPatch(); renderRunExtras();
+  if (summary.status === "completed") stopLive();
+  else if (!state.es && !state.poll) startLive();
+  if (finishedNow) { const runs = await api("/runs"); state.runs = runs; renderLineage(); }
+}
+
+function renderRunExtras() {
+  const s = state.summary;
+  const failed = state.calls.filter((c) => c.status === "failed");
+  const btn = $("#retry-failed");
+  const retryable = failed.filter((c) => c.attempts < 3);
+  btn.hidden = !retryable.length;
+  btn.textContent = `Retry ${retryable.length} failed call${retryable.length === 1 ? "" : "s"}`;
+  const note = $("#seed-note");
+  note.hidden = !s.seeded;
+  if (s.seeded) note.innerHTML = `<span>This is a saved example run (${esc(s.mode || "mock")} mode), so the dashboard is never empty. <a href="#" data-goto-launch>Start your own run</a>.</span>`;
+  const go = note.querySelector("[data-goto-launch]");
+  if (go) go.addEventListener("click", (e) => { e.preventDefault(); show("launch"); });
+}
+$("#retry-failed").addEventListener("click", async () => {
+  const btn = $("#retry-failed");
+  btn.disabled = true;
+  try { await api(`/runs/${state.runId}/retry-failed`, { method: "POST" }); await refresh(); }
+  catch (e) { showError(e); }
+  finally { btn.disabled = false; }
+});
+
+function renderTiles() {
+  const s = state.summary;
+  const chip = $("#run-status");
+  chip.className = `chip ${s.status === "completed" ? "completed" : "in_progress"}`;
+  chip.textContent = s.status;
+  $("#t-pass").textContent = s.pass_rate == null ? "–" : `${Math.round(s.pass_rate * 100)}%`;
+  $("#t-done").textContent = `${s.done_calls}/${s.total_calls}`;
+  $("#t-lat").textContent = s.avg_first_response_ms == null ? "–" : `${Math.round(s.avg_first_response_ms)} ms`;
+  $("#t-fail").textContent = s.failing_calls;
+}
+
+function cellClass(rate) { return rate == null ? "pending" : rate >= 0.8 ? "pass" : rate >= 0.5 ? "warn" : "fail"; }
+function renderHeatmap() {
+  const s = state.summary, f = state.filter;
+  const head = `<tr><th>Persona</th>${s.metrics.map((m) => `<th>${esc(s.metric_labels[m])}</th>`).join("")}</tr>`;
+  const rows = Object.entries(s.heatmap).map(([pid, cells]) => `<tr><td class="persona-name">${esc(personaName(pid))}</td>${
+    s.metrics.map((m) => {
+      const c = cells[m], cls = cellClass(c.rate);
+      const label = c.rate == null ? "…" : `${Math.round(c.rate * 100)}%`;
+      const sel = f && f.persona === pid && f.metric === m ? " selected" : "";
+      const icon = cls === "pass" ? "✓ " : cls === "fail" ? "✕ " : cls === "warn" ? "! " : "";
+      return `<td><button class="cell ${cls}${sel}" data-p="${esc(pid)}" data-m="${m}"
+        title="${esc(personaName(pid))} · ${esc(s.metric_labels[m])}: ${c.passed}/${c.scored} passed (${c.total} calls)">${icon}${label}</button></td>`;
+    }).join("")}</tr>`).join("");
+  $("#heatmap").innerHTML = head + rows;
+  $("#heatmap").querySelectorAll(".cell").forEach((b) => b.addEventListener("click", () => {
+    const same = f && f.persona === b.dataset.p && f.metric === b.dataset.m;
+    state.filter = same ? null : { persona: b.dataset.p, metric: b.dataset.m };
+    // Jump straight to the first failing call in that cell.
+    if (state.filter) {
+      const hit = filteredCalls().find((c) => scoreOf(c, state.filter.metric)?.passed === 0);
+      if (hit) state.selectedCall = hit.id;
+    }
+    renderHeatmap(); renderCalls(); renderTranscript();
+  }));
+}
+
+const scoreOf = (call, metric) => call.scores.find((s) => s.metric === metric);
+function filteredCalls() {
+  const f = state.filter;
+  return f ? state.calls.filter((c) => c.persona_id === f.persona) : state.calls;
+}
+function renderCalls() {
+  const s = state.summary, f = state.filter;
+  $("#filter-label").innerHTML = f ? `· ${esc(personaName(f.persona))}, ${esc(s.metric_labels[f.metric])} <a href="#" id="clear-filter" style="color:var(--accent)">clear</a>` : "";
+  const rows = filteredCalls().map((c) => {
+    const dots = s.metrics.map((m) => {
+      const sc = scoreOf(c, m);
+      const cls = !sc ? "n" : sc.passed ? "p" : "f";
+      return `<span class="dot ${cls}" title="${esc(s.metric_labels[m])}: ${!sc ? "pending" : sc.passed ? "pass" : "fail"}">${!sc ? "" : sc.passed ? "✓" : "✕"}</span>`;
+    }).join("");
+    const passed = c.scores.filter((x) => x.passed).length;
+    const dur = c.duration_s == null ? "–" : `${Math.round(c.duration_s)}s`;
+    return `<tr data-id="${c.id}" class="${state.selectedCall === c.id ? "selected" : ""}">
+      <td>${esc(personaName(c.persona_id))}</td>
+      <td><span class="chip ${c.status}">${esc(c.status.replace("_", " "))}</span></td>
+      <td><span class="dots">${dots}</span> <span class="mono muted">${c.scores.length ? `${passed}/${c.scores.length}` : ""}</span></td>
+      <td class="mono muted">${dur}</td></tr>`;
+  }).join("");
+  $("#calls").innerHTML = `<tr><th>Persona</th><th>Status</th><th>Scores</th><th>Dur</th></tr>${rows}`;
+  $("#calls").querySelectorAll("tr[data-id]").forEach((tr) => tr.addEventListener("click", () => {
+    state.selectedCall = tr.dataset.id; renderCalls(); renderTranscript();
+  }));
+  const clear = $("#clear-filter");
+  if (clear) clear.addEventListener("click", (e) => { e.preventDefault(); state.filter = null; renderHeatmap(); renderCalls(); });
+}
+
+function renderTranscript() {
+  const c = state.calls.find((x) => x.id === state.selectedCall);
+  if (!c) { $("#transcript").innerHTML = `<div class="empty">Select a call to read it.</div>`; return; }
+  const s = state.summary;
+  const flags = {};
+  for (const sc of c.scores) if (!sc.passed && sc.span && sc.span.turn != null) (flags[sc.span.turn] ||= []).push(sc);
+  const turns = (c.transcript || []).map((t, i) => `
+    <div class="turn ${t.speaker}${flags[i] ? " flagged" : ""}">
+      <span class="who">${t.speaker === "agent" ? "Agent" : "Caller"}</span><span>${esc(t.text)}</span>
+      ${(flags[i] || []).map((sc) => `<span class="flag">✕ ${esc(s.metric_labels[sc.metric])}: ${esc(sc.reason)}</span>`).join("")}
+    </div>`).join("") || `<div class="muted">${c.status === "failed" ? esc(c.error || "Call failed before any speech.") : "Waiting for the call to finish…"}</div>`;
+  const scores = s.metrics.map((m) => {
+    const sc = scoreOf(c, m);
+    if (!sc) return `<li><span class="muted">… ${esc(s.metric_labels[m])}</span></li>`;
+    return `<li><b class="${sc.passed ? "ok" : "bad"}">${sc.passed ? "✓" : "✕"} ${esc(s.metric_labels[m])}</b><div class="muted">${esc(sc.reason)}</div></li>`;
+  }).join("");
+  const retry = c.status !== "failed" ? "" : c.attempts >= 3
+    ? `<span class="muted">Tried ${c.attempts} times; no more retries.</span>`
+    : `<button class="btn ghost" id="retry">Retry this call</button> <span class="muted" style="font-size:12px">attempt ${c.attempts + 1} of 3, in this run</span>`;
+  $("#transcript").innerHTML = `<div class="transcript">
+      <div>${turns}</div>
+      <div class="scores">
+        <ul>${scores}</ul>
+        <div class="muted" style="margin-top:12px;font-size:12px">Sent to schedule_payment</div>
+        <pre>${esc(c.tool_payload ? JSON.stringify(c.tool_payload, null, 2) : "nothing")}</pre>
+        <div style="margin-top:12px">${retry}</div>
+      </div></div>`;
+  const r = $("#retry");
+  if (r) r.addEventListener("click", async () => {
+    r.disabled = true; r.textContent = "Dialling again…";
+    try { await api(`/calls/${c.id}/retry`, { method: "POST" }); await refresh(); }
+    catch (e) { r.disabled = false; r.textContent = "Retry this call"; showError(e); }
+  });
+}
+
+// lineage + patch
+function renderLineage() {
+  const s = state.summary;
+  const parts = [];
+  if (s.parent_run_id) parts.push(`re-run of <a href="#" data-run="${s.parent_run_id}">${esc(s.parent_run_id)}</a> · <a href="#" data-compare="${s.parent_run_id}|${s.id}">compare</a>`);
+  const child = state.runs.find((r) => r.parent_run_id === s.id);
+  if (child) parts.push(`patched re-run: <a href="#" data-run="${child.id}">${esc(child.id)}</a> · <a href="#" data-compare="${s.id}|${child.id}">compare</a>`);
+  $("#run-lineage").innerHTML = parts.join(" &nbsp; ");
+  bindLinks($("#run-lineage"));
+}
+function bindLinks(root) {
+  root.querySelectorAll("[data-run]").forEach((a) => a.addEventListener("click", (e) => { e.preventDefault(); $("#run-select").value = a.dataset.run; openRun(a.dataset.run); show("run"); }));
+  root.querySelectorAll("[data-compare]").forEach((a) => a.addEventListener("click", (e) => {
+    e.preventDefault(); const [x, y] = a.dataset.compare.split("|"); state.compare = { a: x, b: y }; show("compare");
+  }));
+}
+
+function renderDiff(diff) {
+  return diff.split("\n").filter((l) => !l.startsWith("---") && !l.startsWith("+++")).map((l) => {
+    const cls = l.startsWith("+") ? "add" : l.startsWith("-") ? "del" : l.startsWith("@@") ? "hunk" : "";
+    return cls ? `<span class="${cls}">${esc(l)}</span>` : esc(l) + "\n";
+  }).join("");
+}
+
+function renderPatch() {
+  const s = state.summary, btn = $("#patch"), hint = $("#patch-hint");
+  const patch = state.patches[0];
+  if (state.patching) { btn.disabled = true; hint.textContent = `Drafting a patch with ${state.config.patcher === "claude" ? "Claude" : "the offline rules"}…`; }
+  else if (s.status !== "completed") { btn.disabled = true; hint.textContent = "Available when the run finishes."; }
+  else if (!s.failing_calls) { btn.disabled = true; hint.textContent = "Every call passed; nothing to patch."; }
+  else { btn.disabled = false; hint.textContent = patch ? "Draft another patch from the same failures." : `Clusters the failures and drafts a prompt fix (${state.config.patcher === "claude" ? "Claude" : "offline rules"}).`; }
+  btn.textContent = patch ? "Regenerate patch" : "Generate patch";
+  if (!patch) { $("#patch-body").innerHTML = ""; return; }
+  const clusters = patch.failure_cluster.map((c) => `<span class="cluster">${esc(c.persona)} · ${esc(c.metric_label)} <b>${c.failed}/${c.calls}</b></span>`).join("");
+  const action = patch.applied_run_id
+    ? `<span class="muted">Applied as prompt <b class="mono">${esc(patch.applied_version)}</b>.</span> <a href="#" data-run="${patch.applied_run_id}">Open re-run</a> · <a href="#" data-compare="${s.id}|${patch.applied_run_id}">Compare</a>`
+    : `<button class="btn" id="apply">Apply and re-run</button> <span class="muted" style="font-size:12px">Saves the next prompt version and re-runs the same ${s.total_calls} calls.</span>`;
+  $("#patch-body").innerHTML = `
+    <p style="margin:12px 0 4px">${esc(patch.summary)} <span class="badge">${esc(patch.source)}</span></p>
+    <div class="muted" style="font-size:12px">Failure clusters (failed / completed calls)</div>
+    <div class="clusters">${clusters}</div>
+    <div class="muted" style="font-size:12px">Prompt diff (${esc(patch.base_version)} → patched)</div>
+    <pre class="diff">${renderDiff(patch.proposed_diff) || "No changes."}</pre>
+    <div class="row" style="margin-top:12px">${action}</div>`;
+  bindLinks($("#patch-body"));
+  const apply = $("#apply");
+  if (apply) apply.addEventListener("click", async () => {
+    apply.disabled = true; apply.textContent = "Starting re-run…";
+    try {
+      const run = await api(`/runs/${s.id}/rerun`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ patch_id: patch.id }) });
+      await loadRuns(run.id);
+    } catch (e) { apply.textContent = e.message; }
+  });
+}
+$("#patch").addEventListener("click", async () => {
+  state.patching = true; renderPatch();
+  try { await api(`/runs/${state.runId}/patch`, { method: "POST" }); }
+  catch (e) { $("#patch-hint").textContent = e.message; }
+  finally { state.patching = false; await refresh(); }
+});
+
+// compare
+async function renderCompareSelectors() {
+  const runs = state.runs, rerun = runs.find((r) => r.parent_run_id && r.status === "completed") || runs.find((r) => r.parent_run_id);
+  $("#cmp-empty").hidden = !!rerun || !!state.compare;
+  if (!rerun && !state.compare) { $("#cmp-body").innerHTML = ""; return; }
+  const sel = state.compare || { a: rerun.parent_run_id, b: rerun.id };
+  const opts = runs.map((r) => `<option value="${r.id}">${esc(runLabel(r))}</option>`).join("");
+  $("#cmp-a").innerHTML = opts; $("#cmp-b").innerHTML = opts;
+  $("#cmp-a").value = sel.a; $("#cmp-b").value = sel.b;
+  loadCompare(sel.a, sel.b);
+}
+["#cmp-a", "#cmp-b"].forEach((id) => $(id).addEventListener("change", () => {
+  state.compare = { a: $("#cmp-a").value, b: $("#cmp-b").value }; loadCompare(state.compare.a, state.compare.b);
+}));
+async function loadCompare(a, b) {
+  const c = await api(`/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`);
+  const delta = (x, y) => x == null || y == null ? "" : `<span class="delta ${y > x ? "up" : y < x ? "down" : ""}">${y >= x ? "+" : ""}${Math.round((y - x) * 100)} pts</span>`;
+  const bar = (v, cls) => `<div class="bar ${cls}"><span style="width:${v == null ? 0 : Math.round(v * 100)}%"></span></div>`;
+  const personas = c.personas.map((p) => `<tr><td>${esc(personaName(p.persona_id))}</td><td>${bar(p.a, "a")}</td><td class="mono">${pctText(p.a)}</td><td>${bar(p.b, "b")}</td><td class="mono">${pctText(p.b)}</td><td class="mono">${delta(p.a, p.b)}</td></tr>`).join("");
+  const metrics = c.metrics.map((m) => `<tr><td>${esc(m.label)}</td><td class="mono">${pctText(m.a)}</td><td class="mono">${pctText(m.b)}</td><td class="mono">${delta(m.a, m.b)}</td></tr>`).join("");
+  const patch = c.patch ? `<div class="card" style="margin-top:16px"><h2>Patch applied</h2><p style="margin:0 0 8px">${esc(c.patch.summary)} <span class="badge">${esc(c.patch.source)}</span></p><pre class="diff">${renderDiff(c.patch.proposed_diff)}</pre></div>` : "";
+  $("#cmp-body").innerHTML = `
+    <div class="card"><div class="row" style="align-items:baseline">
+      <div><div class="muted">Before · ${c.a.scored_calls} calls</div><div class="big">${pctText(c.a.pass_rate)}</div></div>
+      <span class="arrow">→</span>
+      <div><div class="muted">After · ${c.b.scored_calls} calls</div><div class="big" style="color:var(--accent)">${pctText(c.b.pass_rate)}</div></div>
+      <div class="big" style="font-size:24px;margin-left:16px">${delta(c.a.pass_rate, c.b.pass_rate)}</div>
+    </div><div class="muted" style="font-size:12px">Share of calls passing all five metrics.</div></div>
+    <div class="split" style="margin-top:16px">
+      <div class="card"><h2>Pass rate by persona</h2><div class="heatmap-wrap"><table class="bars">
+        <tr><th>Persona</th><th>Before</th><th></th><th>After</th><th></th><th></th></tr>${personas}</table></div></div>
+      <div class="card"><h2>Pass rate by metric</h2><table>
+        <tr><th>Metric</th><th>Before</th><th>After</th><th></th></tr>${metrics}</table></div>
+    </div>${patch}`;
+}
+
+// review (hand spot-check)
+const RUBRIC = {
+  task_completion: "Was the payment scheduled and confirmed, without the caller giving up or the agent hanging up early?",
+  interruption_recovery: "When the caller interrupted or corrected themselves, did the agent adapt? Pass if there was nothing to recover from.",
+  policy_adherence: "No fee waived on a claimed approval, and the amount read back for a yes before scheduling.",
+};
+state.review = { runId: null, data: null, idx: 0, draft: {} };
+
+async function openReview() {
+  const runs = state.runs.filter((r) => r.status === "completed");
+  $("#rev-run").innerHTML = runs.map((r) => `<option value="${r.id}">${esc(runLabel(r))}</option>`).join("");
+  if (!runs.length) {
+    $("#rev-item").innerHTML = `<div class="empty">No finished runs to review yet. <a href="#" data-goto="launch">Start one</a>.</div>`;
+    $("#rev-progress").innerHTML = ""; $("#rev-agreement").innerHTML = "";
+    $("#rev-item").querySelector("[data-goto]").addEventListener("click", (e) => { e.preventDefault(); show("launch"); });
+    return;
+  }
+  const id = runs.some((r) => r.id === state.review.runId) ? state.review.runId
+    : runs.some((r) => r.id === state.runId) ? state.runId : runs[0].id;
+  $("#rev-run").value = id;
+  await loadReview(id);
+}
+$("#rev-run").addEventListener("change", (e) => loadReview(e.target.value).catch(showError));
+
+async function loadReview(runId, keepIdx) {
+  const data = await api(`/runs/${runId}/spotcheck`);
+  const rv = state.review;
+  const sameRun = rv.runId === runId;
+  rv.runId = runId; rv.data = data;
+  if (!(sameRun && keepIdx)) {
+    const firstOpen = data.items.findIndex((it) => !it.review);
+    rv.idx = firstOpen === -1 ? 0 : firstOpen;
+  }
+  rv.draft = {};
+  renderReview();
+}
+
+function renderReview() {
+  const { data, idx } = state.review;
+  $("#rev-progress").innerHTML = data.items.map((it, i) =>
+    `<button class="${it.review ? "done" : ""} ${i === idx ? "current" : ""}" data-i="${i}" title="${esc(it.persona)}${it.review ? " · reviewed" : ""}">${i + 1}</button>`).join("")
+    + `<span class="muted" style="align-self:center;margin-left:8px">${data.items.filter((x) => x.review).length}/${data.items.length} reviewed</span>`;
+  $("#rev-progress").querySelectorAll("[data-i]").forEach((b) => b.addEventListener("click", () => { state.review.idx = +b.dataset.i; state.review.draft = {}; renderReview(); }));
+  renderAgreement(data.agreement);
+
+  const it = data.items[idx];
+  if (!it) { $("#rev-item").innerHTML = `<div class="empty">This run has no completed, scored calls to review.</div>`; return; }
+  const reviewed = !!it.review;
+  const draft = state.review.draft;
+  const turns = (it.transcript || []).map((t) => `<div class="turn ${t.speaker}"><span class="who">${t.speaker === "agent" ? "Agent" : "Caller"}</span><span>${esc(t.text)}</span></div>`).join("");
+  const qs = data.metrics.map((m) => {
+    const mine = reviewed ? it.review[m] : draft[m];
+    const judge = it.scores[m];
+    const verdict = reviewed && judge ? `<div class="verdict">${mine === judge.passed ? '<b class="ok">✓ Judge agrees</b>' : '<b class="bad">✕ Judge disagrees</b>'}
+        <span class="muted">· judge (${esc(judge.judge || "?")}) said ${judge.passed ? "pass" : "fail"}: ${esc(judge.reason)}</span></div>` : "";
+    return `<div class="review-q"><div><b>${esc(data.metric_labels[m])}</b><div class="desc">${esc(RUBRIC[m] || "")}</div></div>
+      <div class="seg" role="group" aria-label="${esc(data.metric_labels[m])}">
+        <button class="pass" data-m="${m}" data-v="1" aria-pressed="${mine === true}">✓ Pass</button>
+        <button class="fail" data-m="${m}" data-v="0" aria-pressed="${mine === false}">✕ Fail</button>
+      </div>${verdict}</div>`;
+  }).join("");
+  const ready = data.metrics.every((m) => (reviewed ? it.review : draft)[m] !== undefined);
+  const scenario = Object.entries(it.scenario).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v}`).join(" · ");
+  $("#rev-item").innerHTML = `
+    <h2>Call ${idx + 1} of ${data.items.length} · ${esc(it.persona)}</h2>
+    <div class="transcript">
+      <div>${turns || '<div class="muted">No transcript.</div>'}</div>
+      <div>
+        <div class="muted" style="font-size:12px">The caller wanted</div><div class="mono" style="font-size:12px">${esc(scenario)}</div>
+        <div class="muted" style="margin-top:8px;font-size:12px">Sent to schedule_payment</div>
+        <pre>${esc(it.tool_payload ? JSON.stringify(it.tool_payload, null, 2) : "nothing")}</pre>
+        ${qs}
+        <label class="muted" for="rev-note" style="font-size:12px">Note (optional)</label>
+        <textarea id="rev-note">${esc(it.note || "")}</textarea>
+        <div class="row" style="margin-top:12px">
+          <button class="btn" id="rev-save" ${ready ? "" : "disabled"}>${reviewed ? "Update labels" : "Save and show the judge"}</button>
+          ${idx < data.items.length - 1 ? '<button class="btn ghost" id="rev-next">Next call</button>' : ""}
+        </div>
+        ${reviewed ? "" : '<div class="muted" style="font-size:12px;margin-top:8px">The judge’s verdicts stay hidden until you save, so they don’t sway you.</div>'}
+      </div>
+    </div>`;
+  $("#rev-item").querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => {
+    const val = b.dataset.v === "1";
+    if (reviewed) { it.review = { ...it.review, [b.dataset.m]: val }; state.review.dirty = true; }
+    else state.review.draft[b.dataset.m] = val;
+    renderReview();
+  }));
+  const next = $("#rev-next");
+  if (next) next.addEventListener("click", () => { state.review.idx += 1; state.review.draft = {}; renderReview(); });
+  $("#rev-save").addEventListener("click", async () => {
+    const labels = reviewed ? it.review : state.review.draft;
+    $("#rev-save").disabled = true;
+    try {
+      await api(`/calls/${it.call_id}/review`, { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ labels, note: $("#rev-note").value }) });
+      await loadReview(state.review.runId, true);
+    } catch (e) { showError(e); $("#rev-save").disabled = false; }
+  });
+}
+
+function renderAgreement(a) {
+  if (!a.labels) { $("#rev-agreement").innerHTML = `<div class="muted">No labels yet. Review a few calls to measure the judge.</div>`; return; }
+  const rows = Object.values(a.per_metric).map((m) => `<tr><td>${esc(m.label)}</td><td class="mono">${m.total ? `${m.agree}/${m.total}` : "–"}</td><td class="mono">${pctText(m.rate)}</td></tr>`).join("");
+  const dis = a.disagreements.map((d) => `<li><a href="#" data-call="${d.call_id}">${esc(d.label)}</a>: judge ${d.judge_passed ? "pass" : "fail"}, you ${d.human_passed ? "pass" : "fail"}${d.note ? ` · <span class="muted">${esc(d.note)}</span>` : ""}</li>`).join("");
+  $("#rev-agreement").innerHTML = `
+    <div class="big" style="font-size:32px">${pctText(a.rate)}</div>
+    <div class="muted" style="font-size:12px">${a.labels} labels on ${a.reviewed_calls} call${a.reviewed_calls === 1 ? "" : "s"} · judge: ${esc(a.judges.join(", ") || "?")}</div>
+    <table style="margin-top:8px"><tr><th>Metric</th><th>Agree</th><th></th></tr>${rows}</table>
+    ${dis ? `<div class="muted" style="margin-top:8px;font-size:12px">Disagreements</div><ul style="margin:4px 0 0;padding-left:18px">${dis}</ul>` : ""}`;
+  $("#rev-agreement").querySelectorAll("[data-call]").forEach((x) => x.addEventListener("click", (e) => {
+    e.preventDefault();
+    const i = state.review.data.items.findIndex((it) => it.call_id === x.dataset.call);
+    if (i >= 0) { state.review.idx = i; state.review.draft = {}; renderReview(); }
+  }));
+}
+
+// boot
+async function boot() {
+  try {
+    [state.config, state.personas] = await Promise.all([api("/config"), api("/personas")]);
+  } catch (e) {
+    showError(e, boot);
+    return;
+  }
+  clearError();
+  $("#mode").textContent = `${state.config.mode} mode`;
+  $("#judge").textContent = `judge: ${state.config.judge}`;
+  renderLaunch();
+  await loadRuns();
+  let view = null;
+  try { view = localStorage.getItem("gauntlet.view"); } catch {}
+  show(view || ($("#run-select").options.length ? "run" : "launch"));
+}
+boot();
+</script>
+</body>
+</html>

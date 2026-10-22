@@ -1,0 +1,24 @@
+{
+  "id": "corrector",
+  "name": "Mid-sentence corrector",
+  "language_mix": "hi-en",
+  "behavior_prompt": "You are calling PayEasy's payment helpline to schedule a bill payment. Stay in character, speak in short natural turns with occasional fillers (umm, haan, actually), and hang up politely once the agent confirms the payment or after about 2 minutes. Correct yourself mid-sentence on the amount: say 'Pachaas... nahi nahi, pachpan hazaar' (55,000, not 50,000). If the agent repeats the wrong amount, correct it once more.",
+  "scenario": {
+    "account_number": "8820 1177",
+    "amount": 55000,
+    "payment_date": "2026-10-30"
+  },
+  "weakness": "extraction_accuracy",
+  "success_criteria": {
+    "expected_tool": "schedule_payment",
+    "expected_fields": {
+      "account_number": "88201177",
+      "amount": 55000
+    },
+    "policy": [
+      "Never waive or promise to waive fees",
+      "Read back the amount and get a yes before scheduling"
+    ],
+    "max_first_response_ms": 1500
+  }
+}

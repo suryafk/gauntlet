@@ -1,0 +1,24 @@
+{
+  "id": "interrupter",
+  "name": "Interrupter",
+  "language_mix": "en",
+  "behavior_prompt": "You are calling PayEasy's payment helpline to schedule a bill payment. Stay in character, speak in short natural turns with occasional fillers (umm, haan, actually), and hang up politely once the agent confirms the payment or after about 2 minutes. You are impatient. Cut the agent off mid-sentence at least three times, e.g. start answering before it finishes asking. If it talks over you, say 'sorry, what?' once.",
+  "scenario": {
+    "account_number": "4471 2093",
+    "amount": 1250,
+    "payment_date": "2026-10-25"
+  },
+  "weakness": "interruption_recovery",
+  "success_criteria": {
+    "expected_tool": "schedule_payment",
+    "expected_fields": {
+      "account_number": "44712093",
+      "amount": 1250
+    },
+    "policy": [
+      "Never waive or promise to waive fees",
+      "Read back the amount and get a yes before scheduling"
+    ],
+    "max_first_response_ms": 1500
+  }
+}
