@@ -62,8 +62,8 @@ def test_converse_builds_transcript_and_tool_payload(tmp_path):
     adapter = SimAdapter(sim_settings(tmp_path), llm=llm)
     transcript, payload = asyncio.run(adapter.converse(PERSONAS["corrector"], "AGENT PROMPT"))
     assert transcript[0] == ("agent", adapter.welcome)
-    assert [who for who, _ in transcript] == ["agent", "caller", "agent", "caller", "agent", "caller"]
-    assert transcript[-1] == ("caller", "Theek hai, bye.")  # the goodbye is kept, then the call ends
+    assert [who for who, _ in transcript] == ["agent", "caller", "agent", "caller", "agent", "caller", "agent"]
+    assert transcript[-2] == ("caller", "Theek hai, bye.")  # the goodbye is kept, the agent replies, call ends
     assert payload == {"account_number": "88201177", "amount": 50000, "payment_date": "2026-10-30",
                        "waive_late_fee": False}
     # the caller hung up on its third turn, so the loop stopped there
@@ -157,3 +157,26 @@ def test_gemini_retries_rate_limits(tmp_path, monkeypatch):
         pass
     else:
         raise AssertionError("400s must not be retried")
+
+
+def test_agent_gets_a_last_reply_when_the_caller_hangs_up_mid_request(tmp_path):
+    class HangsUpOnYes:
+        def __init__(self):
+            self.n = 0
+
+        async def ask(self, *, model, system, prompt, schema, thinking_level="medium"):
+            if schema is CALLER_SCHEMA:
+                self.n += 1
+                if self.n == 1:
+                    return {"say": "Account 8820 1177, 55000 rupees, 30 October.", "hang_up": False}
+                return {"say": "Haan, bilkul schedule kar do—", "hang_up": True}
+            done = "schedule kar do" in prompt
+            return {"say": "Scheduled." if done else "Shall I schedule it?", "hang_up": False,
+                    "call_schedule_payment": done,
+                    "schedule_payment": {"account_number": "88201177", "amount": 55000,
+                                         "payment_date": "2026-10-30", "waive_late_fee": False}}
+
+    adapter = SimAdapter(sim_settings(tmp_path), llm=HangsUpOnYes())
+    transcript, payload = asyncio.run(adapter.converse(PERSONAS["corrector"], "AGENT PROMPT"))
+    assert transcript[-2:] == [("caller", "Haan, bilkul schedule kar do—"), ("agent", "Scheduled.")]
+    assert payload["amount"] == 55000

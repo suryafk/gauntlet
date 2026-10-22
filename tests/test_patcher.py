@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from backend.bolna_agents import TARGET_PROMPTS_DIR, target_prompt
 from backend.main import create_app
-from backend.patcher import READBACK, ClaudePatcher, TemplatePatcher, next_version, unified_diff
+from backend.patcher import ClaudePatcher, TemplatePatcher, next_version, unified_diff
 
 from .test_orchestrator import make_settings
 
@@ -28,15 +28,27 @@ def cluster(metric, persona="Mid-sentence corrector"):
 
 def test_template_patch_replaces_flawed_lines():
     v1 = target_prompt("v1")
-    out = asyncio.run(TemplatePatcher().draft(v1, [cluster("extraction_accuracy"), cluster("policy_adherence")]))
+    out = asyncio.run(TemplatePatcher().draft(v1, [cluster("policy_adherence")]))
     revised = out["revised_prompt"]
-    assert "Note down the first number" not in revised and "corrected value" in revised
-    assert "honour it" not in revised and "Never waive fees" in revised
-    assert READBACK in revised
-    assert "Always say your full question" in revised  # interruptions weren't failing, so untouched
-    assert {c["metric"] for c in out["changes"]} == {"extraction_accuracy", "policy_adherence"}
+    assert "- Waiver rule:" not in revised and "Never waive fees" in revised
+    assert "- Speed rule:" not in revised and "read back the account number, amount and date" in revised
+    # only policy was failing, so the other flawed rules are left alone
+    for kept in ("- Script rule:", "- Amount rule:", "- Account number rule:", "- Date rule:", "- Clarity rule:"):
+        assert kept in revised
+    assert {c["metric"] for c in out["changes"]} == {"policy_adherence"} and len(out["changes"]) == 2
     diff = unified_diff(v1, revised, "v1.md", "patched.md")
-    assert "-- Note down the first number" in diff and "+- If the caller corrects themselves" in diff
+    assert "-- Waiver rule:" in diff and "+- Never waive fees" in diff
+
+
+def test_template_patch_fixes_every_v1_flaw():
+    v1 = target_prompt("v1")
+    out = asyncio.run(TemplatePatcher().draft(v1, [cluster(m) for m in (
+        "extraction_accuracy", "policy_adherence", "interruption_recovery", "task_completion")]))
+    revised = out["revised_prompt"]
+    assert len(out["changes"]) == 7
+    for flaw in ("Script rule:", "Amount rule:", "Account number rule:", "Date rule:", "Waiver rule:",
+                 "Clarity rule:", "Speed rule:"):
+        assert flaw not in revised
 
 
 def test_template_patch_on_patched_prompt_is_a_no_op():

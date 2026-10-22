@@ -120,7 +120,7 @@ API: `POST /runs/{id}/patch`, `GET /runs/{id}/patches`, `POST /runs/{id}/rerun {
 
 **What it does not test:** voice, accents, speech-to-text errors, real barge-in timing and latency. The latency metric is marked "not counted" in this mode.
 
-**Models and limits:** the two sides of each conversation are played by `GEMINI_SIM_MODEL` (default `gemini-3.5-flash-lite`), at roughly 10–14 requests per call. Free-tier keys have small daily quotas per model: `gemini-3.8-flash` allows only 20 requests a day, which a single judged run uses up. On a free key, also set `GEMINI_MODEL=gemini-3.5-flash-lite`, or enable billing in AI Studio. A daily-quota error fails at once, so judging falls back to the offline heuristic instead of waiting. Per-minute limits and server errors are retried with backoff.
+**Models and limits:** the two sides of each conversation are played by `GEMINI_SIM_MODEL` (default `gemini-3.5-flash-lite`), at roughly 10–14 requests per call. Free-tier keys have small daily quotas per model: in testing, both `gemini-3.8-flash` and `gemini-3.5-flash-lite` stopped after about 20 requests a day. That's enough for one or two simulated calls, not a run. **For sim mode, enable billing in AI Studio** (Tier 1); a Flash-Lite call costs a small fraction of a cent. A daily-quota error fails at once, so judging falls back to the offline heuristic instead of waiting. Per-minute limits and server errors are retried with backoff.
 
 **Speed:** on a free key each request took 5–17 s in testing, so one simulated call takes about 1.5–3 minutes. Keep runs small, one call per persona (6 calls), with `MAX_CONCURRENCY=3` to `6`.
 
@@ -131,3 +131,5 @@ MAX_CONCURRENCY=3
 ```
 
 A good demo: a small sim run on v1, generate a patch, re-run on the patched prompt, compare. Then play one recorded real Bolna call to show the voice side works.
+
+**Checking the flaws.** `scripts/check_flaws.py` runs every persona against v1 and against the fully patched prompt in sim mode. It reports, per persona, whether the flaw it was built to trigger fired on v1 and whether the patch fixed it, and saves transcripts to `reports/flaw_check.md`. Run it after any change to `agents/target_prompts/v1.md`; it needs about 12 Gemini requests per call.

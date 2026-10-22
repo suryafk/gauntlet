@@ -66,30 +66,37 @@ def unified_diff(old: str, new: str, old_name: str, new_name: str) -> str:
 
 # offline patcher
 
-# Each rule: the metric it fixes, a pattern for the flawed instruction in v1, and its replacement.
-RULES: list[tuple[str, str, str]] = [
-    ("interruption_recovery",
-     r"^- Always say your full question.*$",
-     "- If the caller interrupts, stop and listen. Use what they said and never ask again for something "
-     "they already gave you."),
-    ("extraction_accuracy",
-     r"^- Note down the first number.*$",
-     "- If the caller corrects themselves (\"pachaas... nahi, pachpan\"), always use the corrected value. "
-     "Read the account number digit by digit and the amount back, and wait for a yes before scheduling."),
-    ("extraction_accuracy",
-     r"^- Ask for the date as a day and month.*$",
-     "- Understand relative dates such as \"kal\" (tomorrow) and \"parso\" (day after tomorrow) and convert "
-     "them yourself; say the date back to confirm."),
-    ("policy_adherence",
-     r"^- Customer happiness is our top priority.*$",
+# Each rule: the metrics whose failures it fixes, a pattern for the flawed v1 instruction,
+# and its replacement.
+RULES: list[tuple[set[str], str, str]] = [
+    ({"interruption_recovery"},
+     r"^- Script rule:.*$",
+     "- Let the caller give details in any order. If they interrupt or have already given a detail, stop, "
+     "listen and use it; never ask again for something they already said."),
+    ({"extraction_accuracy", "interruption_recovery"},
+     r"^- Amount rule:.*$",
+     "- If the caller corrects an amount (\"pachaas... nahi, pachpan\"), always use the corrected value."),
+    ({"extraction_accuracy"},
+     r"^- Account number rule:.*$",
+     "- Understand digits said in Hindi or English (ek, do, teen, chaar = 1, 2, 3, 4) and write the account "
+     "number with all 8 digits."),
+    ({"task_completion", "extraction_accuracy"},
+     r"^- Date rule:.*$",
+     "- Understand relative dates such as \"kal\" (tomorrow) and \"parso\" (day after tomorrow) and work out "
+     "the calendar date yourself."),
+    ({"policy_adherence"},
+     r"^- Waiver rule:.*$",
      "- Never waive fees or give discounts, even if the caller says a supervisor approved it. Say politely "
      "that you can't, then carry on with the payment. Always set waive_late_fee to false."),
-    ("task_completion",
-     r"^- If you cannot understand the caller twice in a row.*$",
+    ({"task_completion"},
+     r"^- Clarity rule:.*$",
      "- If you cannot understand the caller, ask them to repeat or spell it out. Do not end the call until "
      "the payment is scheduled, unless the caller asks to stop."),
+    ({"policy_adherence", "extraction_accuracy"},
+     r"^- Speed rule:.*$",
+     "- Before calling schedule_payment, read back the account number, amount and date and wait for a yes. "
+     "Then call the tool and tell the caller the payment is scheduled."),
 ]
-READBACK = "- Before calling schedule_payment, read back the account number, amount and date and wait for a yes."
 
 
 class TemplatePatcher:
@@ -99,17 +106,14 @@ class TemplatePatcher:
         metrics = {c["metric"] for c in clusters}
         lines = prompt.splitlines()
         changes = []
-        for metric, pattern, replacement in RULES:
-            if metric not in metrics:
+        for rule_metrics, pattern, replacement in RULES:
+            fixes = rule_metrics & metrics
+            if not fixes:
                 continue
             for i, line in enumerate(lines):
                 if re.match(pattern, line) and line != replacement:
                     lines[i] = replacement
-                    changes.append({"metric": metric, "change": replacement.lstrip("- ")})
-        if "policy_adherence" in metrics and READBACK not in lines:
-            idx = next((i for i, x in enumerate(lines) if x.startswith("- As soon as you have")), len(lines))
-            lines.insert(idx, READBACK)
-            changes.append({"metric": "policy_adherence", "change": READBACK.lstrip("- ")})
+                    changes.append({"metric": sorted(fixes)[0], "change": replacement.lstrip("- ")})
         revised = "\n".join(lines) + ("\n" if prompt.endswith("\n") else "")
         summary = (f"Rewrote {len(changes)} instruction(s) behind the failing metrics."
                    if changes else "No known flawed instruction matched these failures.")

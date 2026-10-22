@@ -60,7 +60,8 @@ CALLER_RULES = """
 
 This phone call is simulated in text. Reply with only the words you say aloud next.
 Show interrupting or trailing off by cutting your sentence with "—". Set hang_up to true
-when you say goodbye or give up."""
+only when you say goodbye or give up, never in the same turn as a request or answer the
+agent still has to act on."""
 
 TARGET_RULES = """
 
@@ -113,15 +114,17 @@ class SimAdapter(BolnaAdapter):
                                         schema=CALLER_SCHEMA, thinking_level="low")
             if caller["say"].strip():
                 transcript.append(("caller", caller["say"].strip()))
-            if caller["hang_up"]:
+            if caller["hang_up"] and not caller["say"].strip():
                 break
+            # A caller who hangs up while saying something ("haan, schedule kar do") still
+            # gets one reply from the agent, as on a real line; then the call ends.
             agent = await self.llm.ask(model=model, system=agent_system, prompt=_render(transcript, "agent"),
                                        schema=TARGET_SCHEMA, thinking_level="low")
             if agent["call_schedule_payment"] and tool_payload is None:
                 tool_payload = normalize_tool_params(agent["schedule_payment"])
             if agent["say"].strip():
                 transcript.append(("agent", agent["say"].strip()))
-            if agent["hang_up"]:
+            if agent["hang_up"] or caller["hang_up"]:
                 break
         return transcript, tool_payload
 
