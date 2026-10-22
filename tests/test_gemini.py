@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from backend import mock_data
 from backend.config import ROOT, pick_llm
 from backend.events import EventBus
-from backend.gemini import GeminiJSON
+from backend.gemini import GeminiJSON, GeminiQuotaExhausted
 from backend.models import Store
 from backend.patcher import ClaudePatcher, GeminiPatcher, TemplatePatcher, make_patcher
 from backend.personas import load_personas
@@ -18,19 +18,19 @@ from .test_orchestrator import make_settings
 PERSONAS = load_personas(ROOT / "personas")
 
 
-class FakeInteractions:
-    def __init__(self, text=None, status="completed", error=None):
-        self.text, self.status, self.error, self.kwargs = text, status, error, None
+class FakeModels:
+    def __init__(self, text=None, error=None):
+        self.text, self.error, self.kwargs = text, error, None
 
-    async def create(self, **kw):
+    async def generate_content(self, **kw):
         self.kwargs = kw
         if self.error:
             raise self.error
-        return SimpleNamespace(status=self.status, output_text=self.text)
+        return SimpleNamespace(text=self.text)
 
 
-def fake_client(interactions):
-    return SimpleNamespace(aio=SimpleNamespace(interactions=interactions))
+def fake_client(models):
+    return SimpleNamespace(aio=SimpleNamespace(models=models))
 
 
 def corrector_call():
@@ -67,38 +67,66 @@ def test_gemini_judge_request_and_parse(tmp_path):
         "interruption_recovery": {"passed": False, "reason": "Kept 50,000.", "quote": "Okay, 50,000 rupees."},
         "policy_adherence": {"passed": False, "reason": "No read-back.", "quote": ""},
     }
-    fake = FakeInteractions(json.dumps(out))
+    fake = FakeModels(json.dumps(out))
     judge = GeminiJudge(make_settings(tmp_path), client=fake_client(fake))
     verdicts = asyncio.run(judge.judge(corrector_call(), PERSONAS["corrector"]))
     assert verdicts["task_completion"].passed and not verdicts["interruption_recovery"].passed
-    kw = fake.kwargs
+    kw, config = fake.kwargs, fake.kwargs["config"]
     assert kw["model"] == "gemini-3.8-flash"
-    assert kw["response_format"] == {"type": "text", "mime_type": "application/json", "schema": JUDGE_SCHEMA}
-    assert kw["response_mime_type"] == "application/json"
-    assert kw["store"] is False
-    assert "pachpan" in kw["input"] and "PayEasy" in kw["system_instruction"]
+    assert config.response_json_schema == JUDGE_SCHEMA and config.response_mime_type == "application/json"
+    assert config.thinking_config.thinking_level.value == "MEDIUM"
+    assert "pachpan" in kw["contents"] and "PayEasy" in config.system_instruction
 
 
 def test_gemini_patcher_uses_patch_model(tmp_path):
     out = {"summary": "s", "changes": [{"metric": "policy_adherence", "change": "c"}], "revised_prompt": "new"}
-    fake = FakeInteractions(json.dumps(out))
+    fake = FakeModels(json.dumps(out))
     patcher = GeminiPatcher(make_settings(tmp_path), client=fake_client(fake))
     cluster = {"persona": "Prompt injector", "metric": "policy_adherence", "failed": 3, "calls": 5,
                "reasons": ["waived"], "examples": ["I've waived your late fee."]}
     assert asyncio.run(patcher.draft("old prompt", [cluster])) == out
     assert fake.kwargs["model"] == "gemini-4-argon"
-    assert fake.kwargs["generation_config"] == {"thinking_level": "high"}
-    assert "<current_prompt>\nold prompt" in fake.kwargs["input"]
+    assert fake.kwargs["config"].thinking_config.thinking_level.value == "HIGH"
+    assert "<current_prompt>\nold prompt" in fake.kwargs["contents"]
 
 
-def test_incomplete_interaction_raises(tmp_path):
-    llm = GeminiJSON(make_settings(tmp_path), client=fake_client(FakeInteractions("{}", status="incomplete")))
+def test_empty_reply_raises(tmp_path):
+    llm = GeminiJSON(make_settings(tmp_path), client=fake_client(FakeModels("")))
     try:
         asyncio.run(llm.ask(model="m", system="s", prompt="p", schema={}))
     except Exception as exc:
-        assert "incomplete" in str(exc)
+        assert "empty response" in str(exc)
     else:
         raise AssertionError("expected an error")
+
+
+class QuotaError(Exception):
+    code = 429
+
+    def __init__(self, quota_id, retry_delay):
+        super().__init__("RESOURCE_EXHAUSTED")
+        self.details = {"error": {"details": [
+            {"violations": [{"quotaId": quota_id}]},
+            {"retryDelay": retry_delay},
+        ]}}
+
+
+def test_daily_quota_fails_fast_without_retrying(tmp_path):
+    calls = []
+
+    class Models:
+        async def generate_content(self, **kw):
+            calls.append(kw)
+            raise QuotaError("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "68193s")
+
+    llm = GeminiJSON(make_settings(tmp_path), client=fake_client(Models()))
+    try:
+        asyncio.run(llm.ask(model="gemini-3.8-flash", system="s", prompt="p", schema={}))
+    except GeminiQuotaExhausted as exc:
+        assert "gemini-3.8-flash" in str(exc)
+    else:
+        raise AssertionError("expected GeminiQuotaExhausted")
+    assert len(calls) == 1
 
 
 def test_gemini_failure_falls_back_to_heuristic(tmp_path):
@@ -109,7 +137,7 @@ def test_gemini_failure_falls_back_to_heuristic(tmp_path):
     row = store.create_call(run["id"], "corrector")
     call = {**corrector_call(), "id": row["id"], "run_id": run["id"]}
 
-    judge = GeminiJudge(settings, client=fake_client(FakeInteractions(error=RuntimeError("quota exhausted"))))
+    judge = GeminiJudge(settings, client=fake_client(FakeModels(error=RuntimeError("quota exhausted"))))
     verdicts = asyncio.run(Scorer(store, EventBus(), settings, PERSONAS, judge).score_call(call))
     assert verdicts["policy_adherence"].reason.startswith("[heuristic fallback]")
     judges = {s["metric"]: s["judge"] for s in store.scores_for_run(run["id"])}

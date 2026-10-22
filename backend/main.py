@@ -48,6 +48,8 @@ def create_app(settings: Settings | None = None, adapter=None, judge=None, patch
         orch.on_call_finished.append(scorer.score_call)
         app.state.scorer = scorer
         app.state.patcher = Patcher(store, settings, personas, patcher)
+        if settings.bolna_mode == "sim" and not settings.gemini_api_key:
+            log_event("warning", message="BOLNA_MODE=sim needs GEMINI_API_KEY; every call will fail without it")
         if settings.bolna_mode == "real":
             if not settings.webhook_secret:
                 log_event("warning", message="WEBHOOK_SECRET is empty; webhooks are not authenticated")

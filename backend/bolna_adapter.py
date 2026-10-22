@@ -264,4 +264,8 @@ class MockBolnaAdapter(BolnaAdapter):
 def make_adapter(settings: Settings) -> BolnaAdapter:
     if settings.bolna_mode == "real":
         return RealBolnaAdapter(settings)
+    if settings.bolna_mode == "sim":
+        from .sim_adapter import SimAdapter  # imported here: sim_adapter builds on this module
+
+        return SimAdapter(settings)
     return MockBolnaAdapter(settings)

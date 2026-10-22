@@ -63,6 +63,8 @@ class Settings:
     llm_provider: str = field(default_factory=lambda: _env("LLM_PROVIDER", "gemini"))
     gemini_api_key: str = field(default_factory=lambda: _env("GEMINI_API_KEY") or _env("GOOGLE_API_KEY"))
     gemini_model: str = field(default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash"))
+    # Sim mode makes ~10-14 requests per call, so it defaults to the high-quota Flash-Lite model.
+    gemini_sim_model: str = field(default_factory=lambda: _env("GEMINI_SIM_MODEL", "gemini-3.5-flash-lite"))
     gemini_patch_model: str = field(default_factory=lambda: _env("GEMINI_PATCH_MODEL", "gemini-4-argon"))
     anthropic_api_key: str = field(default_factory=lambda: _env("ANTHROPIC_API_KEY"))
     # auto = the LLM_PROVIDER model when its key is set, else the offline heuristic judge.

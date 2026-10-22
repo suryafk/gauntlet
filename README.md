@@ -50,7 +50,7 @@ The caller's webhook only shows the caller's side. The target's tool payload and
 
 Setup:
 
-1. You need **two numbers** in Bolna: `TARGET_NUMBER` (the target answers it) and a different `BOLNA_FROM_NUMBER` for the caller to dial from. On a trial account, the number dialled must be verified, and only 2 calls run at once, so set `MAX_CONCURRENCY=2`.
+1. You need **one** Bolna number, `TARGET_NUMBER`, which the target agent answers (about $5/month). Leave `BOLNA_FROM_NUMBER` empty and the callers dial out from Bolna's shared default numbers. Set it only if you want a fixed caller number, and it must differ from `TARGET_NUMBER`. On a trial account only 2 calls run at once, so set `MAX_CONCURRENCY=2`.
 2. Start the server and a tunnel; put the tunnel URL in `PUBLIC_BASE_URL`, and a random `WEBHOOK_SECRET`:
    ```bash
    .venv/bin/uvicorn backend.main:app --port 8000
@@ -86,7 +86,7 @@ Each finished call gets five pass/fail scores, each with a reason and, on failur
 
 A call passes only if all five pass; failed or dropped calls count as fails.
 
-**Which LLM.** `LLM_PROVIDER=gemini` (the default) grades with `GEMINI_MODEL` (`gemini-3.8-flash`) and drafts patches with `GEMINI_PATCH_MODEL` (`gemini-4-argon`). Both use the google-genai Interactions API with a JSON-schema response and `store=False`. Set `LLM_PROVIDER=claude` with `ANTHROPIC_API_KEY` to use Claude (`claude-opus-5-5`) instead. With `JUDGE_MODE=auto`, if the chosen provider has no key, the offline heuristic judge and rewrite rules are used. `JUDGE_MODE=heuristic` forces offline. If an LLM call fails, that call falls back to the heuristic and its reasons say so.
+**Which LLM.** `LLM_PROVIDER=gemini` (the default) grades with `GEMINI_MODEL` (`gemini-3.8-flash`) and drafts patches with `GEMINI_PATCH_MODEL` (`gemini-4-argon`). Both use the google-genai Interactions API with a JSON-schema response and `store=False`. Set `LLM_PROVIDER=claude` with `ANTHROPIC_API_KEY` to use Claude (`claude-opus-5-5`) instead. With `JUDGE_MODE=auto`, if the chosen provider has no key, the offline heuristic judge and rewrite rules are used. Free Gemini keys have small daily quotas per model (see Sim mode below). `JUDGE_MODE=heuristic` forces offline. If an LLM call fails, that call falls back to the heuristic and its reasons say so.
 
 ## Patch, re-run, compare (stage 4)
 
@@ -111,3 +111,23 @@ API: `POST /runs/{id}/patch`, `GET /runs/{id}/patches`, `POST /runs/{id}/rerun {
 **Error states.** If the server can't be reached or a request fails, a banner says so and offers **Retry**. If the live stream drops, the page falls back to polling every 2 s and says so in the run bar.
 
 **Spot-check (Review tab).** Pick a finished run, and the tab samples 10 calls. The sample is stable per run, alternates calls the judge passed and failed, and spreads across personas. For each call you label Task, Interrupt and Policy yourself. The judge's verdicts stay hidden until you save, then show as agree or disagree with its reasons. The agreement card gives the overall and per-metric rates and lists every disagreement with your note. Labels are stored in the `reviews` table, and each score records which judge produced it (`gemini`, `claude`, `heuristic`, `heuristic fallback` or `code`). API: `GET /runs/{id}/spotcheck`, `POST /calls/{id}/review`.
+
+## Sim mode: real conversations without phone calls
+
+`BOLNA_MODE=sim` replaces telephony with a text simulation. For each call, Gemini (`GEMINI_MODEL`) plays the caller persona, using `agents/caller_prompt.md` with the persona filled in. Gemini also plays the target agent, using the run's actual target prompt (`v1.md`, or the patched `v2.md`, ...) and its `schedule_payment` tool. Up to 7 back-and-forth exchanges, ending when either side hangs up.
+
+**How it differs from mock mode:** a call's outcome depends on what the prompt says. So the patched re-run measures whether the patch fixed the failures; mock mode's fixed failure rates never could.
+
+**What it does not test:** voice, accents, speech-to-text errors, real barge-in timing and latency. The latency metric is marked "not counted" in this mode.
+
+**Models and limits:** the two sides of each conversation are played by `GEMINI_SIM_MODEL` (default `gemini-3.5-flash-lite`), at roughly 10–14 requests per call. Free-tier keys have small daily quotas per model: `gemini-3.8-flash` allows only 20 requests a day, which a single judged run uses up. On a free key, also set `GEMINI_MODEL=gemini-3.5-flash-lite`, or enable billing in AI Studio. A daily-quota error fails at once, so judging falls back to the offline heuristic instead of waiting. Per-minute limits and server errors are retried with backoff.
+
+**Speed:** on a free key each request took 5–17 s in testing, so one simulated call takes about 1.5–3 minutes. Keep runs small, one call per persona (6 calls), with `MAX_CONCURRENCY=3` to `6`.
+
+```
+BOLNA_MODE=sim
+GEMINI_API_KEY=...
+MAX_CONCURRENCY=3
+```
+
+A good demo: a small sim run on v1, generate a patch, re-run on the patched prompt, compare. Then play one recorded real Bolna call to show the voice side works.

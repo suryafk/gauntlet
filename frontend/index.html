@@ -159,6 +159,7 @@
         <h2>Target agent</h2>
         <div class="mono" id="target"></div>
         <div class="muted">Our deliberately flawed PayEasy agent. Callers may dial only this number.</div>
+        <div id="mode-note" class="banner info" style="margin:12px 0 0" hidden></div>
       </div>
       <div class="card">
         <h2>Personas</h2>
@@ -290,6 +291,13 @@ document.querySelectorAll("[data-goto]").forEach((a) => a.addEventListener("clic
 function renderLaunch() {
   $("#target").textContent = state.config.target_number;
   $("#cap").textContent = state.config.run_call_cap;
+  const notes = {
+    mock: "Mock mode: calls are scripted pass/fail transcripts, and the v1 → patched improvement is simulated. Use it to show the workflow, not results.",
+    sim: "Sim mode: no phone calls. Gemini plays each caller persona and the target agent in text, using the run's actual target prompt, so a patch's effect is real. Voice, accents and latency are not tested. About 10–14 Gemini requests per call.",
+    real: "Real mode: each call is a real Bolna phone call and costs credits. Start with one call.",
+  };
+  $("#mode-note").hidden = !notes[state.config.mode];
+  $("#mode-note").textContent = notes[state.config.mode] || "";
   $("#persona-list").innerHTML = state.personas.map((p) => `
     <label class="persona"><input type="checkbox" value="${esc(p.id)}" checked>
       <span>${esc(p.name)}<small>${esc(p.language_mix)} · tests ${esc((p.weakness || "").replace(/_/g, " "))}</small></span></label>`).join("");
