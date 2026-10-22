@@ -88,3 +88,5 @@ class Settings:
     mock_call_min_s: float = field(default_factory=lambda: float(_env("MOCK_CALL_MIN_S", "1.0")))
     mock_call_max_s: float = field(default_factory=lambda: float(_env("MOCK_CALL_MAX_S", "4.0")))
     mock_dial_fail_rate: float = field(default_factory=lambda: float(_env("MOCK_DIAL_FAIL_RATE", "0.05")))
+    # Set for repeatable demos: the same persona/prompt/call number always gets the same outcome.
+    mock_seed: str = field(default_factory=lambda: _env("MOCK_SEED"))

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gauntlet Evidence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B0F14; --surface: #131A22; --surface-2: #19222C; --border: #24303C;
+    --text: #E6EDF3; --muted: #8B98A5;
+    --pass: #2EA043; --warn: #D29922; --fail: #F85149; --accent: #58A6FF;
+    --radius: 8px; --mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.6 Inter, system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 24px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  header h1 { font-size: 16px; font-weight: 600; margin: 0; }
+  header a { color: var(--accent); margin-left: auto; }
+  main { padding: 24px; max-width: 980px; margin: 0 auto; display: grid; gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  h2 { font-size: 13px; font-weight: 600; margin: 0 0 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+  p { margin: 0 0 8px; }
+  .muted { color: var(--muted); }
+  .badge { font: 500 11px var(--mono); padding: 2px 8px; border: 1px solid var(--border); border-radius: 99px; color: var(--muted); white-space: nowrap; }
+  .turn { display: grid; grid-template-columns: 64px 1fr; gap: 8px; padding: 6px 8px; border-radius: 6px; font: 13px var(--mono); }
+  .turn .who { color: var(--muted); }
+  .turn.agent .who { color: var(--accent); }
+  .turn.hl { background: color-mix(in srgb, var(--warn) 14%, transparent); border-left: 3px solid var(--warn); }
+  pre { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 8px; overflow: auto; font: 12px var(--mono); margin: 4px 0 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { padding: 6px 8px; border-top: 1px solid var(--border); text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; border-top: 0; }
+  .ok { color: var(--pass); font-weight: 600; } .bad { color: var(--fail); font-weight: 600; }
+  ul { margin: 0; padding-left: 18px; }
+  code { font-family: var(--mono); font-size: 12px; }
+  @media (max-width: 700px) { header, main { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Gauntlet · Evidence</h1>
+  <span class="badge">recorded 22 Oct 2026</span>
+  <a href="/">← Dashboard</a>
+</header>
+<main>
+  <div class="card">
+    <h2>What this page is</h2>
+    <p>The live demo runs in <b>mock mode</b>: call transcripts are scripted, so the dashboard shows the workflow without spending credits. This page shows the parts that ran for real, outside the demo.</p>
+  </div>
+
+  <div class="card">
+    <h2>A real simulated call, graded by Gemini</h2>
+    <p>Gemini (<code>gemini-3.5-flash-lite</code>) played both sides in text: the <b>mid-sentence corrector</b> persona, and the PayEasy target agent working from its prompt (the first draft of v1). Nothing was scripted. Then the Gemini judge graded the transcript.</p>
+    <div style="margin-top:12px">
+      <div class="turn agent"><span class="who">Agent</span><span>Namaste, PayEasy mein aapka swagat hai. How can I help you today?</span></div>
+      <div class="turn caller"><span class="who">Caller</span><span>Haan namaste, umm, mujhe ek bill payment schedule karna tha.</span></div>
+      <div class="turn agent"><span class="who">Agent</span><span>Main bilkul madad kar sakti hoon. Kripya apna 8-digit account number batayiye.</span></div>
+      <div class="turn caller"><span class="who">Caller</span><span>Haan, mera account number hai 8820 1177.</span></div>
+      <div class="turn agent"><span class="who">Agent</span><span>Thank you. Kitna amount aap pay karna chahte hain?</span></div>
+      <div class="turn caller hl"><span class="who">Caller</span><span>Umm, pachaas— nahi nahi, pachpan hazaar rupees pay karne hain.</span></div>
+      <div class="turn agent"><span class="who">Agent</span><span>Thank you. Kripya payment ki date batayiye, jaise ki 25 October.</span></div>
+      <div class="turn caller"><span class="who">Caller</span><span>Umm, date rakhni hai 30 October 2026.</span></div>
+      <div class="turn agent hl"><span class="who">Agent</span><span>Thank you. Your payment of 55000 rupees for account number 88201177 has been scheduled for 30 October.</span></div>
+    </div>
+    <div class="muted" style="margin-top:12px;font-size:12px">What the agent sent to its <code>schedule_payment</code> tool</div>
+    <pre>{"account_number": "88201177", "amount": 55000, "payment_date": "30 October", "waive_late_fee": false}</pre>
+  </div>
+
+  <div class="card">
+    <h2>How it was scored</h2>
+    <table>
+      <tr><th>Metric</th><th>Result</th><th>Reason given</th></tr>
+      <tr><td>Extraction</td><td class="ok">✓ pass</td><td>Checked in code: account number and amount match what the caller meant (55,000, not the 50,000 they first said).</td></tr>
+      <tr><td>Interrupt</td><td class="ok">✓ pass</td><td>Gemini: the agent adapted to the caller's correction from 50,000 to 55,000 without re-asking.</td></tr>
+      <tr><td>Policy</td><td class="bad">✕ fail</td><td>Gemini: the agent never read the amount back to get a yes before scheduling.</td></tr>
+      <tr><td>Task</td><td class="bad">✕ fail</td><td>Gemini: same reason as Policy.</td></tr>
+    </table>
+    <p class="muted" style="margin-top:12px">Two honest notes. First, the policy failure is the real flaw: the agent scheduled the payment without reading anything back. Second, the Task verdict is arguably wrong, because the payment was scheduled. That's exactly why Gauntlet has a <b>Review</b> tab, where a person spot-checks the judge and the agreement rate is tracked.</p>
+    <p class="muted">This draft of v1 also let the agent use the corrected amount despite a "keep the first number" instruction. So v1's flaws were rewritten as firm company rules, and <code>scripts/check_flaws.py</code> now checks that each one fires.</p>
+  </div>
+
+  <div class="card">
+    <h2>Real Bolna integration, built but not yet run against live calls</h2>
+    <ul>
+      <li><code>scripts/setup_bolna.py</code> creates the target and caller agents through Bolna's v2 agent API and attaches the target to its phone number.</li>
+      <li>The target agent's <code>schedule_payment</code> custom tool posts what it extracted to Gauntlet, so the target's side of each call is captured.</li>
+      <li>Each call's webhook is matched to the right run, and the target's side is joined to its caller-side call by time and transcript similarity.</li>
+      <li>Before a run, the target agent's prompt is switched to the run's version through the Bolna API, so a patched re-run dials the patched agent.</li>
+    </ul>
+    <p class="muted" style="margin-top:8px">Real mode needs one Bolna phone number for the target agent; the callers dial out from Bolna's shared numbers. It's switched on with <code>BOLNA_MODE=real</code>.</p>
+  </div>
+</main>
+</body>
+</html>

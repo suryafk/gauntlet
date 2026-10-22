@@ -6,6 +6,9 @@
       "runtimeExecutable": "env",
       "runtimeArgs": [
         "BOLNA_MODE=mock",
+        "JUDGE_MODE=heuristic",
+        "MOCK_SEED=672",
+        "MAX_CONCURRENCY=10",
         "DATABASE_URL=gauntlet-dev.db",
         ".venv/bin/uvicorn",
         "backend.main:app",

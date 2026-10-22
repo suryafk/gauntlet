@@ -217,23 +217,35 @@ class MockBolnaAdapter(BolnaAdapter):
         super().__init__(settings)
         self.rng = random.Random(seed)
         self._tasks: set[asyncio.Task] = set()
+        self._counts: dict[tuple[str, str], int] = {}
+
+    def _rng_for(self, persona_id: str, prompt_version: str) -> random.Random:
+        """With MOCK_SEED, each persona/prompt/call number gets its own fixed random stream, so
+        a demo rehearsal plays out the same way however the calls interleave."""
+        if not self.settings.mock_seed:
+            return self.rng
+        key = (persona_id, prompt_version)
+        n = self._counts[key] = self._counts.get(key, 0) + 1
+        return random.Random(f"{self.settings.mock_seed}:{prompt_version}:{persona_id}:{n}")
 
     async def start_call(self, *, call_id: str, persona: dict[str, Any], to_number: str,
                          prompt_version: str) -> str:
         self._guard_target(to_number)
-        if self.rng.random() < self.settings.mock_dial_fail_rate:
+        rng = self._rng_for(persona["id"], prompt_version)
+        if rng.random() < self.settings.mock_dial_fail_rate:
             raise DialError("mock: carrier rejected the call")
         execution_id = str(uuid.uuid4())
         fail_prob = self.FAIL_PROB.get(prompt_version, self.PATCHED_FAIL_PROB)
-        outcome = "fail" if self.rng.random() < fail_prob else "pass"
-        duration = self.rng.uniform(self.settings.mock_call_min_s, self.settings.mock_call_max_s)
-        task = asyncio.create_task(self._simulate(execution_id, call_id, persona, outcome, duration))
+        outcome = "fail" if rng.random() < fail_prob else "pass"
+        duration = rng.uniform(self.settings.mock_call_min_s, self.settings.mock_call_max_s)
+        task = asyncio.create_task(self._simulate(execution_id, call_id, persona, outcome, duration, rng))
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
         return execution_id
 
     async def _simulate(self, execution_id: str, call_id: str, persona: dict[str, Any],
-                        outcome: str, duration: float) -> None:
+                        outcome: str, duration: float, rng: random.Random | None = None) -> None:
+        rng = rng or self.rng
         assert self._deliver is not None, "MockBolnaAdapter.bind() was not called"
         context = {"recipient_data": {"gauntlet_call_id": call_id}}
         await asyncio.sleep(duration * 0.2)
@@ -243,16 +255,16 @@ class MockBolnaAdapter(BolnaAdapter):
         transcript = "\n".join(
             f"{'assistant' if speaker == 'caller' else 'user'}: {text}" for speaker, text in script
         )
-        slow = outcome == "fail" and self.rng.random() < 0.3
+        slow = outcome == "fail" and rng.random() < 0.3
         await self._deliver({
             "id": execution_id,
             "status": "completed",
-            "conversation_duration": round(20 + len(script) * 6 + self.rng.uniform(0, 10), 1),
+            "conversation_duration": round(20 + len(script) * 6 + rng.uniform(0, 10), 1),
             "transcript": transcript,
             "context_details": context,
             "telephony_data": {"recording_url": None, "call_type": "outbound", "provider": "mock"},
-            "latency_data": {"time_to_first_audio": round(self.rng.uniform(1800, 2600) if slow
-                                                          else self.rng.uniform(600, 1200), 1)},
+            "latency_data": {"time_to_first_audio": round(rng.uniform(1800, 2600) if slow
+                                                          else rng.uniform(600, 1200), 1)},
             "extracted_data": {"tool_payload": mock_data.payload_for(persona, outcome)},
         })
 

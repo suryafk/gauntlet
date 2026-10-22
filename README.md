@@ -133,3 +133,9 @@ MAX_CONCURRENCY=3
 A good demo: a small sim run on v1, generate a patch, re-run on the patched prompt, compare. Then play one recorded real Bolna call to show the voice side works.
 
 **Checking the flaws.** `scripts/check_flaws.py` runs every persona against v1 and against the fully patched prompt in sim mode. It reports, per persona, whether the flaw it was built to trigger fired on v1 and whether the patch fixed it, and saves transcripts to `reports/flaw_check.md`. Run it after any change to `agents/target_prompts/v1.md`; it needs about 12 Gemini requests per call.
+
+## Demo (stage 6)
+
+See **[DEMO.md](DEMO.md)** for the 2-minute run of show, setup, what to expect and likely questions. In short: mock mode with `JUDGE_MODE=heuristic` and `MOCK_SEED=672`, reset with `scripts/demo_reset.py` before every take, and finish on `/evidence.html`, which shows a real Gemini-simulated call.
+
+`MOCK_SEED` gives each persona, prompt version and call number its own fixed random stream, so with the same seed every run plays out identically, however calls interleave.
