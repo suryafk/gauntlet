@@ -1,0 +1,14 @@
+{
+  "voice": "Naresh - The Education Narrator (ElevenLabs, jJaU0S5jshkDpZa3f47A)",
+  "model": "eleven_v4",
+  "scenes": [
+    {"id": "s1_problem", "text": "Voice agents usually ship after a handful of clean, English test calls. Then real callers code-switch, correct themselves mid-sentence, and try to talk the agent into things it shouldn't do. Gauntlet is CI/CD for voice agents."},
+    {"id": "s2_overview", "text": "From the overview, one click runs the flagship scenario: six adversarial caller personas, five calls each, against PayEasy, a bill-payment agent we built with deliberate flaws. In this recording the calls are simulated, so the demo is free and repeatable."},
+    {"id": "s3_live", "text": "Thirty calls run in parallel, and the heatmap fills in live. One row per persona, one column per metric: task, extraction, interruptions, policy and latency. Only twenty percent of calls pass."},
+    {"id": "s4_failure", "text": "Click a red cell, and you land on the exact line that failed. The caller said, pachaas... nahi, pachpan hazaar. Fifty, no, fifty-five thousand. The agent booked fifty thousand. The call trace shows what scored each metric."},
+    {"id": "s5_patch", "text": "Gauntlet groups the failures by persona and metric, and drafts a fix to the agent's prompt. You see the diff before anything changes: keep the corrected amount, read details back, and never waive fees on a claimed approval. Apply it, and the same thirty callers dial again."},
+    {"id": "s6_compare", "text": "Same callers, patched prompt: twenty percent, up to ninety. In this recording that jump is simulated. In sim mode, Gemini plays both the caller and the agent from the real prompts, so the before and after is actually measured."},
+    {"id": "s7_evidence", "text": "Here is one of those real conversations, simulated and graded by Gemini. And because AI judges make mistakes, the Review tab has a person label calls blind, and tracks how often they agree with the judge."},
+    {"id": "s8_close", "text": "The Bolna integration is built: agent setup, webhooks, and switching prompts per run. Gauntlet. Break your voice agent, before your customers do."}
+  ]
+}

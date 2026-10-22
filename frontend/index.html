@@ -109,6 +109,35 @@
   .bar.b > span { background: var(--accent); }
   .delta { white-space: nowrap; }
 
+  /* Overview */
+  .hero { display: grid; gap: 8px; margin-bottom: 16px; }
+  .eyebrow { font: 600 12px var(--mono); color: var(--accent); letter-spacing: .04em; text-transform: uppercase; }
+  .card h2.hero-title { font-size: 22px; font-weight: 600; margin: 0; line-height: 1.3; color: var(--text); text-transform: none; letter-spacing: 0; }
+  .hero p { margin: 0 0 8px; max-width: 760px; }
+  .tile .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .tile a.value { color: inherit; text-decoration: none; display: block; }
+  .pipeline { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .pipeline li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; }
+  .pipeline .n { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; font: 600 12px var(--mono); background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+  .pipeline b { display: block; }
+  .pipeline span { color: var(--muted); font-size: 13px; }
+  .runs tr[data-run-id] { cursor: pointer; }
+  .runs tr[data-run-id]:hover td { background: var(--surface-2); }
+
+  /* Run pipeline strip + call trace */
+  .stages { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .stage { display: flex; align-items: center; gap: 8px; border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; background: var(--surface); font-size: 13px; }
+  .stage .dotx { width: 8px; height: 8px; border-radius: 99px; background: var(--pending); }
+  .stage.done .dotx { background: var(--pass); }
+  .stage.active .dotx { background: var(--warn); }
+  .stage .count { font: 500 12px var(--mono); color: var(--muted); }
+  .stage-arrow { color: var(--muted); align-self: center; }
+  .trace { list-style: none; margin: 0 0 12px; padding: 0; border-left: 2px solid var(--border); }
+  .trace li { position: relative; padding: 2px 0 6px 14px; font-size: 12px; }
+  .trace li::before { content: ""; position: absolute; left: -5px; top: 7px; width: 8px; height: 8px; border-radius: 99px; background: var(--pending); }
+  .trace li.ok::before { background: var(--pass); } .trace li.bad::before { background: var(--fail); }
+  .trace .t { font-family: var(--mono); color: var(--muted); }
+
   /* Banners, review */
   .banner { display: flex; gap: 12px; align-items: center; border: 1px solid var(--fail); background: color-mix(in srgb, var(--fail) 12%, transparent); border-radius: var(--radius); padding: 8px 12px; margin-bottom: 16px; flex-wrap: wrap; }
   .banner.info { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
@@ -134,7 +163,9 @@
   @media (max-width: 900px) {
     header, main { padding-left: 16px; padding-right: 16px; }
     .tiles { grid-template-columns: repeat(2, 1fr); }
-    .split, .transcript { grid-template-columns: 1fr; }
+    .split, .transcript { grid-template-columns: minmax(0, 1fr); }
+    nav { margin-left: 0; width: 100%; overflow-x: auto; }
+    nav button { flex: none; }
   }
 </style>
 </head>
@@ -144,6 +175,7 @@
   <span class="badge" id="mode">…</span>
   <span class="badge" id="judge" title="Who grades task, interruption and policy metrics"></span>
   <nav>
+    <button data-view="overview">Overview</button>
     <button data-view="launch">Launch</button>
     <button data-view="run">Run</button>
     <button data-view="compare">Compare</button>
@@ -154,6 +186,31 @@
 
 <main>
   <div id="banner" class="banner" hidden role="alert"><span id="banner-text"></span><button class="btn ghost" id="banner-retry">Retry</button></div>
+  <section id="view-overview" hidden>
+    <div class="card hero">
+      <div class="eyebrow">CI/CD for voice agents</div>
+      <h2 class="hero-title">Break your voice agent before your customers do.</h2>
+      <p class="muted">Gauntlet dials your agent with adversarial Hindi–English callers, scores every call, drafts a prompt fix from the failures, and re-runs the same callers to check that the fix worked.</p>
+      <div class="row">
+        <button class="btn" id="flagship">Run the flagship scenario</button>
+        <button class="btn ghost" id="ov-configure">Configure a run</button>
+        <span class="muted" style="font-size:12px">6 caller personas × 5 calls against the deliberately flawed PayEasy agent (prompt v1)</span>
+        <span class="error" id="flagship-error" role="alert"></span>
+      </div>
+    </div>
+    <div class="tiles" id="ov-tiles"></div>
+    <div class="split">
+      <div class="card">
+        <h2>How a run works</h2>
+        <ol class="pipeline" id="ov-pipeline"></ol>
+      </div>
+      <div class="card">
+        <h2>Recent runs</h2>
+        <div class="heatmap-wrap"><table class="runs" id="ov-runs"></table></div>
+      </div>
+    </div>
+  </section>
+
   <section id="view-launch" hidden>
     <div class="launch">
       <div class="card">
@@ -189,10 +246,12 @@
       <span id="run-lineage" class="muted"></span>
       <span id="live" class="live"></span>
       <button class="btn ghost" id="retry-failed" hidden></button>
+      <a class="btn ghost" id="export" href="#" download style="text-decoration:none">Export JSON</a>
     </div>
     <div id="seed-note" class="banner info" hidden></div>
     <div id="run-empty" class="empty" hidden>No runs yet. <a href="#" data-goto="launch" style="color:var(--accent)">Start one</a>.</div>
     <div id="run-body">
+      <div class="stages" id="stages" aria-label="Run pipeline"></div>
       <div class="tiles">
         <div class="card tile"><div class="label">Pass rate</div><div class="value" id="t-pass">–</div></div>
         <div class="card tile"><div class="label">Calls done</div><div class="value" id="t-done">–</div></div>
@@ -268,11 +327,12 @@ const personaName = (id) => (state.personas.find((p) => p.id === id) || {}).name
 
 // views
 function show(view) {
-  for (const v of ["launch", "run", "compare", "review"]) $(`#view-${v}`).hidden = v !== view;
+  for (const v of ["overview", "launch", "run", "compare", "review"]) $(`#view-${v}`).hidden = v !== view;
   document.querySelectorAll("nav button").forEach((b) => { if (b.dataset.view !== view) b.removeAttribute("aria-current"); else b.setAttribute("aria-current", "page"); });
   try { localStorage.setItem("gauntlet.view", view); } catch {}
   if (view === "compare") renderCompareSelectors().catch(showError);
   if (view === "review") openReview().catch(showError);
+  if (view === "overview") loadOverview().catch((e) => showError(e, loadOverview));
 }
 
 // errors
@@ -386,7 +446,7 @@ async function refresh() {
   if (id !== state.runId) return;
   const finishedNow = summary.status === "completed" && state.summary && state.summary.id === id && state.summary.status !== "completed";
   state.summary = summary; state.calls = calls; state.patches = patches;
-  renderTiles(); renderHeatmap(); renderCalls(); renderTranscript(); renderLineage(); renderPatch(); renderRunExtras();
+  renderTiles(); renderHeatmap(); renderCalls(); renderTranscript(); renderLineage(); renderPatch(); renderRunExtras(); renderStages();
   if (summary.status === "completed") stopLive();
   else if (!state.es && !state.poll) startLive();
   if (finishedNow) { const runs = await api("/runs"); state.runs = runs; renderLineage(); }
@@ -502,6 +562,8 @@ function renderTranscript() {
   $("#transcript").innerHTML = `<div class="transcript">
       <div>${turns}</div>
       <div class="scores">
+        <div class="muted" style="font-size:12px;margin-bottom:6px">Call trace</div>
+        ${renderTrace(c)}
         <ul>${scores}</ul>
         <div class="muted" style="margin-top:12px;font-size:12px">Sent to schedule_payment</div>
         <pre>${esc(c.tool_payload ? JSON.stringify(c.tool_payload, null, 2) : "nothing")}</pre>
@@ -734,6 +796,102 @@ function renderAgreement(a) {
   }));
 }
 
+// overview (home)
+async function loadOverview() {
+  const o = await api("/overview");
+  const judge = state.config.judge === "heuristic" ? "the offline judge" : `the ${state.config.judge} judge`;
+  const patcher = state.config.patcher === "rules" ? "offline rewrite rules" : state.config.patcher;
+  const callsNote = { mock: "scripted calls (mock mode)", sim: "Gemini plays caller and agent in text (sim mode)", real: "real Bolna phone calls" }[state.config.mode] || state.config.mode;
+  $("#ov-pipeline").innerHTML = [
+    ["Attack", `Caller personas dial the target agent in parallel: interrupters, code-switchers, self-correctors, prompt injectors. Now: ${callsNote}.`],
+    ["Capture", "Each call's transcript and what the agent actually sent to its schedule_payment tool."],
+    ["Score", `Five metrics per call: extraction and latency checked in code; task, interruptions and policy by ${judge}. Every failure points at the line that caused it.`],
+    ["Patch", `Failures are grouped by persona and metric, and a revised prompt is drafted (${patcher}). You see the diff before applying it.`],
+    ["Prove", "The same callers re-run on the patched prompt, and Compare shows the before and after."],
+  ].map(([t, d], i) => `<li><span class="n">${i + 1}</span><div><b>${t}</b><span>${esc(d)}</span></div></li>`).join("");
+
+  const fix = o.latest_fix;
+  const fixTile = fix
+    ? `<a class="value" href="#" data-compare="${fix.before.id}|${fix.after.id}">${pctText(fix.before.pass_rate)} → ${pctText(fix.after.pass_rate)}</a>
+       <div class="sub">prompt ${esc(fix.before.target_prompt_version)} → ${esc(fix.after.target_prompt_version)} on the same callers${fix.after.seeded ? " · example run" : ""}</div>`
+    : `<div class="value">–</div><div class="sub">Patch a finished run and re-run it</div>`;
+  const rv = o.review;
+  $("#ov-tiles").innerHTML = `
+    <div class="card tile"><div class="label">Test runs</div><div class="value">${o.total_runs}</div><div class="sub">${o.personas} caller personas</div></div>
+    <div class="card tile"><div class="label">Calls tested</div><div class="value">${o.total_calls}</div><div class="sub">every one scored on 5 metrics</div></div>
+    <div class="card tile"><div class="label">Latest fix</div>${fixTile}</div>
+    <div class="card tile"><div class="label">Judge agreement</div><div class="value">${rv.labels ? pctText(rv.rate) : "–"}</div><div class="sub">${rv.labels ? `${rv.labels} human labels` : "No human labels yet · Review tab"}</div></div>`;
+
+  const rows = o.runs.map((r) => {
+    const t = new Date(r.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    return `<tr data-run-id="${r.id}">
+      <td class="mono muted">${esc(t)}</td>
+      <td class="mono">${esc(r.id)}${r.seeded ? ' <span class="badge">example</span>' : ""}${r.parent_run_id ? ' <span class="badge">re-run</span>' : ""}</td>
+      <td class="mono">${esc(r.target_prompt_version)}</td>
+      <td class="mono">${pctText(r.pass_rate)}</td>
+      <td class="mono">${r.total_calls}</td>
+      <td><span class="chip ${r.status === "completed" ? "completed" : "in_progress"}">${esc(r.status)}</span></td></tr>`;
+  }).join("");
+  $("#ov-runs").innerHTML = o.runs.length
+    ? `<tr><th>Started</th><th>Run</th><th>Prompt</th><th>Pass rate</th><th>Calls</th><th>Status</th></tr>${rows}`
+    : `<tr><td class="empty">No runs yet. Start the flagship scenario above.</td></tr>`;
+  $("#ov-runs").querySelectorAll("tr[data-run-id]").forEach((tr) => tr.addEventListener("click", async () => {
+    await loadRuns(tr.dataset.runId); show("run");
+  }));
+  bindLinks($("#ov-tiles"));
+}
+$("#ov-configure").addEventListener("click", () => show("launch"));
+$("#flagship").addEventListener("click", async () => {
+  const btn = $("#flagship");
+  btn.disabled = true; $("#flagship-error").textContent = "";
+  try {
+    const run = await api("/runs", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona_ids: state.personas.map((p) => p.id), calls_per_persona: 5, prompt_version: "v1" }) });
+    await loadRuns(run.id);
+    show("run");
+  } catch (e) { $("#flagship-error").textContent = e.message; }
+  finally { btn.disabled = false; }
+});
+
+// run pipeline strip + call trace
+function renderStages() {
+  const s = state.summary, calls = state.calls;
+  const n = calls.length;
+  const dialled = calls.filter((c) => c.status !== "queued").length;
+  const finished = calls.filter((c) => c.status === "completed" || c.status === "failed").length;
+  const patch = state.patches[0];
+  const child = state.runs.find((r) => r.parent_run_id === s.id);
+  const stage = (label, count, done, active) =>
+    `<div class="stage ${done ? "done" : active ? "active" : ""}"><span class="dotx"></span>${label}<span class="count">${count}</span></div>`;
+  const judge = state.config.judge;
+  $("#stages").innerHTML = [
+    stage("Dial", `${dialled}/${n}`, dialled === n, dialled > 0),
+    stage("Converse", `${finished}/${n}`, finished === n, dialled > 0),
+    stage(`Score · ${judge}`, `${s.scored_calls}/${n}`, s.scored_calls === n && n > 0, finished > 0),
+    stage("Patch", patch ? (patch.applied_run_id ? "applied" : "drafted") : "–", !!patch, false),
+    stage("Re-run", child ? child.status : "–", child && child.status === "completed", !!child),
+  ].join('<span class="stage-arrow">→</span>');
+  $("#export").href = `/runs/${s.id}/report`;
+}
+
+function renderTrace(c) {
+  const time = (iso) => iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }) : "";
+  const items = [`<li class="ok">Queued in run <span class="t">${esc(c.run_id)}</span></li>`];
+  if (c.started_at) items.push(`<li class="ok">Dialled <span class="t">${time(c.started_at)}</span>${c.attempts > 1 ? ` · attempt ${c.attempts}` : ""}</li>`);
+  if (c.status === "failed") items.push(`<li class="bad">Failed <span class="t">${time(c.ended_at)}</span> · ${esc(c.error || "")}</li>`);
+  else if (c.status === "completed") items.push(`<li class="ok">Call ended <span class="t">${time(c.ended_at)}</span>${c.duration_s ? ` · ${Math.round(c.duration_s)}s conversation` : ""}</li>`);
+  else items.push(`<li>${esc(c.status.replace("_", " "))}…</li>`);
+  if (c.target_call_sid) items.push(`<li class="ok">Target agent's side joined <span class="t">${esc(c.target_call_sid)}</span></li>`);
+  if (c.scores.length) {
+    const by = {};
+    for (const sc of c.scores) (by[sc.judge || "?"] ||= []).push(state.summary.metric_labels[sc.metric]);
+    const parts = Object.entries(by).map(([j, ms]) => `${ms.join(", ")} by ${j === "code" ? "code checks" : esc(j)}`);
+    const failed = c.scores.filter((x) => !x.passed).length;
+    items.push(`<li class="${failed ? "bad" : "ok"}">Scored: ${parts.join("; ")} · ${5 - failed}/5 passed</li>`);
+  }
+  return `<ul class="trace">${items.join("")}</ul>`;
+}
+
 // boot
 async function boot() {
   try {
@@ -749,7 +907,7 @@ async function boot() {
   await loadRuns();
   let view = null;
   try { view = localStorage.getItem("gauntlet.view"); } catch {}
-  show(view || ($("#run-select").options.length ? "run" : "launch"));
+  show(view || "overview");
 }
 boot();
 </script>

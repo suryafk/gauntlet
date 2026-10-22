@@ -30,7 +30,9 @@ Stop the server (Ctrl-C), then:
 .venv/bin/uvicorn backend.main:app --port 8000
 ```
 
-Open http://localhost:8000 in a full-screen browser window at about 1280×800, zoomed to 110–125%. Hide bookmarks and other tabs. The dashboard opens on the saved example run.
+Open http://localhost:8000 in a full-screen browser window at about 1280×800, zoomed to 110–125%. Hide bookmarks and other tabs. The dashboard opens on the **Overview**: what Gauntlet does, numbers from the stored runs, how a run works, and recent runs.
+
+A narrated 2-minute video of this exact flow is in `demo-video/` (see its README); render it as a backup.
 
 ## What you'll see with seed 672
 
@@ -47,18 +49,18 @@ Open http://localhost:8000 in a full-screen browser window at about 1280×800, z
 **0:00–0:15 · The problem** (on the dashboard showing the example run)
 > "Voice agents ship after a few clean English test calls. Then real callers code-switch, correct themselves and try to talk the agent into things. Gauntlet is CI/CD for voice agents: it attacks your agent with realistic callers, scores every call, drafts a fix, and re-runs to check it."
 
-**0:15–0:30 · Launch**
-Click **Launch**. Point at the six personas (Hindi-English switcher, mid-sentence corrector, prompt injector, ...) and at the mock-mode note.
+**0:15–0:30 · Flagship scenario**
+On the Overview, point at "How a run works", then click **Run the flagship scenario** (6 personas × 5 = 30 calls against prompt v1).
 > "Calls are simulated here so we don't burn credits on stage. Everything after the call, the scoring, patching and re-run, is the real pipeline."
 
-Click **Start run** (6 personas × 5 = 30 calls).
+(To pick personas and call counts yourself, use **Launch**.)
 
 **0:30–0:55 · Live heatmap**
 The heatmap fills as calls finish.
-> "Thirty callers in parallel. Rows are personas, columns are what we score: task done, details captured, handling interruptions, policy, latency."
+> "Thirty callers in parallel. The strip on top shows the pipeline: dial, converse, score, patch, re-run. Rows are personas, columns are what we score: task done, details captured, handling interruptions, policy, latency."
 
 Click the red **Mid-sentence corrector × Extraction** cell. The transcript opens with the failing line flagged:
-> "The caller said 'pachaas... nahi, pachpan hazaar', fifty, no, fifty-five thousand. The agent booked 50,000. Here's the exact line and the reason."
+> "The caller said 'pachaas... nahi, pachpan hazaar', fifty, no, fifty-five thousand. The agent booked 50,000. Here's the exact line and the reason, and the call trace shows what scored each metric."
 
 **0:55–1:05 · Retry** (optional; skip if short on time)
 Click **Retry 1 failed call** in the run bar.

@@ -139,3 +139,9 @@ A good demo: a small sim run on v1, generate a patch, re-run on the patched prom
 See **[DEMO.md](DEMO.md)** for the 2-minute run of show, setup, what to expect and likely questions. In short: mock mode with `JUDGE_MODE=heuristic` and `MOCK_SEED=672`, reset with `scripts/demo_reset.py` before every take, and finish on `/evidence.html`, which shows a real Gemini-simulated call.
 
 `MOCK_SEED` gives each persona, prompt version and call number its own fixed random stream, so with the same seed every run plays out identically, however calls interleave.
+
+## Product polish and demo video
+
+- **Overview** (the home screen): what Gauntlet does, metrics computed from stored runs (`GET /overview`), how a run works, recent runs, and **Run the flagship scenario** (6 personas × 5 calls on prompt v1) in one click.
+- **Run view**: a live pipeline strip (Dial → Converse → Score → Patch → Re-run), a per-call **trace** (queued, dialled, ended, target side joined, which scorer graded each metric), and **Export JSON** (`GET /runs/{id}/report`).
+- **`demo-video/`**: a narrated 1080p video of the real app made with Remotion, with ElevenLabs narration. See [demo-video/README.md](demo-video/README.md).

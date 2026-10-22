@@ -1,0 +1,247 @@
+{
+ "fps": 30,
+ "width": 1920,
+ "height": 1080,
+ "scenes": [
+  {
+   "id": "s1_problem",
+   "kind": "intro",
+   "audio": "audio/s1_problem.mp3",
+   "durationFrames": 522,
+   "captions": [
+    {
+     "text": "Voice agents usually ship after a handful of clean, English test calls.",
+     "from": 0,
+     "frames": 164
+    },
+    {
+     "text": "Then real callers code-switch, correct themselves mid-sentence,",
+     "from": 164,
+     "frames": 146
+    },
+    {
+     "text": "and try to talk the agent into things it shouldn't do.",
+     "from": 310,
+     "frames": 125
+    },
+    {
+     "text": "Gauntlet is CI/CD for voice agents.",
+     "from": 435,
+     "frames": 81
+    }
+   ]
+  },
+  {
+   "id": "s2_overview",
+   "kind": "footage",
+   "audio": "audio/s2_overview.mp3",
+   "durationFrames": 561,
+   "captions": [
+    {
+     "text": "From the overview, one click runs the flagship scenario: six adversarial caller personas,",
+     "from": 0,
+     "frames": 195
+    },
+    {
+     "text": "five calls each, against PayEasy, a bill-payment agent we built with deliberate flaws.",
+     "from": 195,
+     "frames": 189
+    },
+    {
+     "text": "In this recording the calls are simulated, so the demo is free and repeatable.",
+     "from": 384,
+     "frames": 171
+    }
+   ],
+   "footageStartFrame": 13,
+   "label": "Overview · one-click flagship scenario",
+   "real": false
+  },
+  {
+   "id": "s3_live",
+   "kind": "footage",
+   "audio": "audio/s3_live.mp3",
+   "durationFrames": 465,
+   "captions": [
+    {
+     "text": "Thirty calls run in parallel, and the heatmap fills in live.",
+     "from": 0,
+     "frames": 146
+    },
+    {
+     "text": "One row per persona, one column per metric: task, extraction, interruptions,",
+     "from": 146,
+     "frames": 185
+    },
+    {
+     "text": "policy and latency.",
+     "from": 331,
+     "frames": 46
+    },
+    {
+     "text": "Only twenty percent of calls pass.",
+     "from": 377,
+     "frames": 83
+    }
+   ],
+   "footageStartFrame": 525,
+   "label": "Run · 30 calls in parallel, scored live",
+   "real": false
+  },
+  {
+   "id": "s4_failure",
+   "kind": "footage",
+   "audio": "audio/s4_failure.mp3",
+   "durationFrames": 537,
+   "captions": [
+    {
+     "text": "Click a red cell, and you land on the exact line that failed.",
+     "from": 0,
+     "frames": 149
+    },
+    {
+     "text": "The caller said, pachaas... nahi, pachpan hazaar.",
+     "from": 149,
+     "frames": 119
+    },
+    {
+     "text": "Fifty, no, fifty-five thousand.",
+     "from": 268,
+     "frames": 76
+    },
+    {
+     "text": "The agent booked fifty thousand.",
+     "from": 344,
+     "frames": 78
+    },
+    {
+     "text": "The call trace shows what scored each metric.",
+     "from": 422,
+     "frames": 110
+    }
+   ],
+   "footageStartFrame": 984,
+   "label": "Drill-down · the exact line that failed",
+   "real": false
+  },
+  {
+   "id": "s5_patch",
+   "kind": "footage",
+   "audio": "audio/s5_patch.mp3",
+   "durationFrames": 558,
+   "captions": [
+    {
+     "text": "Gauntlet groups the failures by persona and metric,",
+     "from": 0,
+     "frames": 105
+    },
+    {
+     "text": "and drafts a fix to the agent's prompt.",
+     "from": 105,
+     "frames": 80
+    },
+    {
+     "text": "You see the diff before anything changes: keep the corrected amount, read details back,",
+     "from": 185,
+     "frames": 179
+    },
+    {
+     "text": "and never waive fees on a claimed approval.",
+     "from": 364,
+     "frames": 88
+    },
+    {
+     "text": "Apply it, and the same thirty callers dial again.",
+     "from": 452,
+     "frames": 101
+    }
+   ],
+   "footageStartFrame": 1514,
+   "label": "Patch · clustered failures → prompt diff",
+   "real": false
+  },
+  {
+   "id": "s6_compare",
+   "kind": "footage",
+   "audio": "audio/s6_compare.mp3",
+   "durationFrames": 498,
+   "captions": [
+    {
+     "text": "Same callers, patched prompt: twenty percent, up to ninety.",
+     "from": 0,
+     "frames": 130
+    },
+    {
+     "text": "In this recording that jump is simulated.",
+     "from": 130,
+     "frames": 90
+    },
+    {
+     "text": "In sim mode, Gemini plays both the caller and the agent from the real prompts,",
+     "from": 220,
+     "frames": 172
+    },
+    {
+     "text": "so the before and after is actually measured.",
+     "from": 392,
+     "frames": 99
+    }
+   ],
+   "footageStartFrame": 2306,
+   "label": "Compare · same callers, patched prompt",
+   "real": false
+  },
+  {
+   "id": "s7_evidence",
+   "kind": "footage",
+   "audio": "audio/s7_evidence.mp3",
+   "durationFrames": 431,
+   "captions": [
+    {
+     "text": "Here is one of those real conversations, simulated and graded by Gemini.",
+     "from": 0,
+     "frames": 151
+    },
+    {
+     "text": "And because AI judges make mistakes, the Review tab has a person label calls blind,",
+     "from": 151,
+     "frames": 175
+    },
+    {
+     "text": "and tracks how often they agree with the judge.",
+     "from": 326,
+     "frames": 99
+    }
+   ],
+   "footageStartFrame": 2798,
+   "label": "Evidence · a real Gemini-simulated call",
+   "real": true,
+   "switchFrame": 271,
+   "label2": "Review · a person spot-checks the judge"
+  },
+  {
+   "id": "s8_close",
+   "kind": "outro",
+   "audio": "audio/s8_close.mp3",
+   "durationFrames": 335,
+   "captions": [
+    {
+     "text": "The Bolna integration is built: agent setup, webhooks, and switching prompts per run.",
+     "from": 0,
+     "frames": 196
+    },
+    {
+     "text": "Gauntlet.",
+     "from": 196,
+     "frames": 21
+    },
+    {
+     "text": "Break your voice agent, before your customers do.",
+     "from": 217,
+     "frames": 113
+    }
+   ]
+  }
+ ],
+ "totalFrames": 3907
+}

@@ -50,3 +50,31 @@ def test_demo_seed_plays_out_as_documented(tmp_path, concurrency):
 
         cmp = client.get(f"/compare?a={base['id']}&b={rerun['id']}").json()
         assert all(p["b"] > p["a"] for p in cmp["personas"])
+
+
+def test_overview_and_report_reflect_stored_runs(tmp_path):
+    prompts = tmp_path / "prompts"
+    prompts.mkdir()
+    shutil.copy(TARGET_PROMPTS_DIR / "v1.md", prompts / "v1.md")
+    settings = make_settings(tmp_path, mock_seed="672", max_concurrency=10, target_prompts_dir=prompts)
+    with TestClient(create_app(settings)) as client:
+        empty = client.get("/overview").json()
+        assert empty["total_runs"] == 0 and empty["latest_fix"] is None and empty["review"]["rate"] is None
+
+        base = client.post("/runs", json={"persona_ids": ALL, "calls_per_persona": 2}).json()
+        wait_completed(client, base["id"])
+        patch = client.post(f"/runs/{base['id']}/patch").json()
+        rerun = client.post(f"/runs/{base['id']}/rerun", json={"patch_id": patch["id"]}).json()
+        after = wait_completed(client, rerun["id"])
+
+        o = client.get("/overview").json()
+        assert o["total_runs"] == 2 and o["total_calls"] == 24 and o["personas"] == 6
+        assert o["latest_fix"]["before"]["id"] == base["id"] and o["latest_fix"]["after"]["id"] == rerun["id"]
+        assert o["latest_fix"]["after"]["pass_rate"] == after["pass_rate"]
+
+        resp = client.get(f"/runs/{rerun['id']}/report")
+        assert resp.status_code == 200
+        assert f'gauntlet-run-{rerun["id"]}.json' in resp.headers["content-disposition"]
+        report = resp.json()
+        assert len(report["calls"]) == 12 and all(len(c["scores"]) == 5 for c in report["calls"])
+        assert report["summary"]["pass_rate"] == after["pass_rate"]

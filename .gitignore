@@ -8,3 +8,6 @@ __pycache__/
 *.db-journal
 *.db-wal
 *.db-shm
+demo-video/node_modules/
+demo-video/out/
+demo-video/public/footage/

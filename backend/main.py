@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -126,6 +126,54 @@ def create_app(settings: Settings | None = None, adapter=None, judge=None, patch
     @app.get("/runs")
     async def list_runs(request: Request) -> list[dict[str, Any]]:
         return request.app.state.store.list_runs()
+
+    @app.get("/overview")
+    async def overview(request: Request) -> dict[str, Any]:
+        """Home-screen numbers, all derived from stored runs."""
+        store = request.app.state.store
+        runs = []
+        for r in store.list_runs():
+            s = run_summary(store, r["id"])
+            runs.append({k: r[k] for k in ("id", "created_at", "status", "target_prompt_version", "parent_run_id",
+                                           "seeded", "mode")}
+                        | {k: s[k] for k in ("pass_rate", "total_calls", "scored_calls", "failed_calls")})
+        by_id = {r["id"]: r for r in runs}
+        latest_fix = None
+        for r in runs:  # newest first
+            parent = by_id.get(r["parent_run_id"] or "")
+            if parent and r["status"] == parent["status"] == "completed":
+                latest_fix = {"before": parent, "after": r}
+                break
+        labels = agree = 0
+        for r in runs:
+            a = agreement(store, r["id"])
+            labels += a["labels"]
+            agree += round((a["rate"] or 0) * a["labels"])
+        return {
+            "runs": runs[:12],
+            "total_runs": len(runs),
+            "total_calls": sum(r["total_calls"] for r in runs),
+            "personas": len(request.app.state.personas),
+            "latest_fix": latest_fix,
+            "review": {"labels": labels, "rate": agree / labels if labels else None},
+        }
+
+    @app.get("/runs/{run_id}/report")
+    async def run_report(run_id: str, request: Request) -> Response:
+        """Everything about one run as a downloadable JSON file."""
+        run = _run_or_404(request, run_id)
+        store = request.app.state.store
+        scores: dict[str, list] = defaultdict(list)
+        for sc in store.scores_for_run(run_id):
+            scores[sc["call_id"]].append({k: sc[k] for k in ("metric", "passed", "reason", "judge", "value")})
+        report = {
+            "run": run,
+            "summary": run_summary(store, run_id),
+            "calls": [{**c, "scores": scores.get(c["id"], [])} for c in store.list_calls(run_id)],
+            "patches": store.patches_for_run(run_id),
+        }
+        return Response(json.dumps(report, indent=2, ensure_ascii=False, default=str), media_type="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="gauntlet-run-{run_id}.json"'})
 
     @app.get("/runs/{run_id}")
     async def get_run(run_id: str, request: Request) -> dict[str, Any]:
