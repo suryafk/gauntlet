@@ -12,3 +12,4 @@ demo-video/node_modules/
 demo-video/out/
 demo-video/public/footage/
 deck/node_modules/
+.DS_Store

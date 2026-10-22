@@ -1,5 +1,7 @@
 # Flaw check
 
+> **Read this first.** Incomplete run. The free Gemini quota ran out after about 2 of the 12 simulated calls, so v1 was never tested and most rows are errors. It does not show whether the v1 flaws fire. Rerun `scripts/check_flaws.py` with a billed Gemini key.
+
 Conversation model `gemini-3.5-flash-lite`, judge `gemini-3.5-flash-lite`, 1 call(s) per persona per version.
 
 | Persona | Built to break | v1 fails | Patched fails | Flaw fired on v1 | Fixed by patch |
